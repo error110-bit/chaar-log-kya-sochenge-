@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Frontend Integration Example</title>
+  </head>
+  <body>
+    <h2>Internship Page Hooks</h2>
+    <input id="internship-search" placeholder="Search internships" />
+    <select id="internship-source">
+      <option value="">All sources</option>
+    </select>
+    <select id="internship-gender">
+      <option value="">All gender</option>
+    </select>
+    <select id="internship-sort-by">
+      <option value="title">Title</option>
+      <option value="company">Company</option>
+      <option value="deadline">Deadline</option>
+    </select>
+    <select id="internship-sort-order">
+      <option value="asc">Asc</option>
+      <option value="desc">Desc</option>
+    </select>
+    <div>Total internships: <span id="internship-total">0</span></div>
+    <div id="internship-error"></div>
+    <div id="internship-list"></div>
+    <div id="internship-pagination"></div>
+
+    <hr />
+
+    <h2>Mentorship Page Hooks</h2>
+    <input id="mentorship-search" placeholder="Search mentorship programmes" />
+    <select id="mentorship-source">
+      <option value="">All sources</option>
+    </select>
+    <select id="mentorship-company">
+      <option value="">All companies</option>
+    </select>
+    <select id="mentorship-gender">
+      <option value="">All gender</option>
+    </select>
+    <select id="mentorship-sort-by">
+      <option value="programme_name">Programme</option>
+      <option value="company">Company</option>
+      <option value="deadline">Deadline</option>
+    </select>
+    <select id="mentorship-sort-order">
+      <option value="asc">Asc</option>
+      <option value="desc">Desc</option>
+    </select>
+    <div>Total mentorship programmes: <span id="mentorship-total">0</span></div>
+    <div id="mentorship-error"></div>
+    <div id="mentorship-list"></div>
+    <div id="mentorship-pagination"></div>
+
+    <script>
+      window.API_BASE_URL = "http://127.0.0.1:5000";
+    </script>
+    <script type="module" src="./internships-page.js"></script>
+    <script type="module" src="./mentorships-page.js"></script>
+  </body>
+</html>
