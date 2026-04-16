@@ -1,551 +1,698 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
-import { Playfair_Display, DM_Serif_Display, Space_Mono, Libre_Baskerville, Poppins } from "next/font/google"
+import { Inter, Space_Mono } from "next/font/google"
+import { FolderCard } from "@/components/FolderCard"
+import { fetchInternships, fetchMentorships, type InternshipItem, type MentorshipItem } from "@/lib/opportunity-api"
 
-const playfair = Playfair_Display({ subsets: ["latin"], weight: ["400", "700"], style: ["normal", "italic"] })
-const dmSerif = DM_Serif_Display({ subsets: ["latin"], weight: "400", style: ["normal", "italic"] })
+const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"] })
 const spaceMono = Space_Mono({ subsets: ["latin"], weight: ["400", "700"] })
-const libreBaskerville = Libre_Baskerville({ subsets: ["latin"], weight: ["400", "700"], style: ["normal", "italic"] })
-const poppins = Poppins({ subsets: ["latin"], weight: ["300", "400", "500", "600"], style: ["normal", "italic"] })
 
-const internships = [
-  {
-    role: "Product Design Intern",
-    company: "Zomato",
-    stipend: "₹40,000/mo",
-    location: "Remote",
-    branch: "Any",
-    cgpa: "7.5+",
-    type: "Design",
-    duration: "3 months",
-    mode: "Work from home",
-    gender: "All genders",
-    deadline: "May 15, 2025",
-    link: "#apply",
-    desc: "End-to-end product design for consumer-facing features. You'll own user research, wireframing, and handoff to engineering.",
-    logo: "ZO",
-    pay: "₹",
-  },
-  {
-    role: "Software Engineer Intern",
-    company: "Swiggy",
-    stipend: "₹25,000/mo",
-    location: "Bangalore",
-    branch: "CS / IT / ECE",
-    cgpa: "8.0+",
-    type: "Engineering",
-    duration: "2 months",
-    mode: "In-office",
-    gender: "All genders",
-    deadline: "April 30, 2025",
-    link: "#apply",
-    desc: "Full-stack development on consumer-facing features using React and Node.js. Real production code from day one.",
-    logo: "SW",
-    pay: "₹",
-  },
-  {
-    role: "Marketing Intern",
-    company: "Mamaearth",
-    stipend: "₹8,000/mo",
-    location: "Delhi",
-    branch: "Any",
-    cgpa: "No cutoff",
-    type: "Marketing",
-    duration: "1 month",
-    mode: "Hybrid",
-    gender: "All genders",
-    deadline: "May 5, 2025",
-    link: "#apply",
-    desc: "Social media strategy, content calendars, and campaign analytics for a leading D2C beauty brand.",
-    logo: "MA",
-    pay: "₹",
-  },
-  {
-    role: "Data Science Intern",
-    company: "Reliance",
-    stipend: "₹50,000/mo",
-    location: "Mumbai",
-    branch: "CS / Math / Stats",
-    cgpa: "8.5+",
-    type: "Data",
-    duration: "6 months",
-    mode: "In-office",
-    gender: "All genders",
-    deadline: "June 1, 2025",
-    link: "#apply",
-    desc: "Build ML models and data pipelines for business intelligence at scale. Python, SQL, and a willingness to dig deep.",
-    logo: "RL",
-    pay: "₹₹",
-  },
-  {
-    role: "UX Research Intern",
-    company: "Razorpay",
-    stipend: "₹20,000/mo",
-    location: "Ahmedabad",
-    branch: "Any",
-    cgpa: "No cutoff",
-    type: "Research",
-    duration: "3 months",
-    mode: "In-office",
-    gender: "All genders",
-    deadline: "May 20, 2025",
-    link: "#apply",
-    desc: "User interviews, usability testing & synthesis for B2B fintech platform.",
-    logo: "RZ",
-    pay: "₹",
-  },
-  {
-    role: "Product Management Intern",
-    company: "InMobi",
-    stipend: "₹1,20,000/mo",
-    location: "Remote",
-    branch: "Any",
-    cgpa: "8.0+",
-    type: "Product",
-    duration: "2 months",
-    mode: "Work from home",
-    gender: "All genders",
-    deadline: "May 25, 2025",
-    link: "#apply",
-    desc: "Roadmap planning, sprint management & stakeholder communication.",
-    logo: "IN",
-    pay: "₹₹₹",
-  },
-]
+type StipendFilter = "all" | "high" | "mid" | "low"
+type ModeFilter = "all" | "Remote" | "On-site" | "Hybrid"
+type CgpaFilter = "all" | "required" | "none"
+
+type LoadedInternship = InternshipItem & {
+  id: string
+  stipendTier: StipendFilter | null
+  hasCgpa: boolean
+}
+
+type LoadedMentorship = MentorshipItem & {
+  id: string
+  hasCgpa: boolean
+}
 
 const companies = [
-  "Zomato", "Swiggy", "Razorpay", "Mamaearth", "Reliance", "InMobi",
-  "Meesho", "CRED", "upGrad", "Byju's", "PhonePe", "Ola", "Flipkart"
+  "Microsoft",
+  "Google",
+  "Amazon",
+  "Razorpay",
+  "Morgan Stanley",
+  "NVIDIA",
+  "Uber",
+  "Adobe",
 ]
 
-const teamMembers = [
-  { 
-    name: "Falguni Dhingra", 
-    bio: "Hello! I am Falguni Dhingra. Although by my ID card, I am a first year student pursuing a B.tech in Chemical Engineering from IIT Roorkee, I have tried my hand in many different pursuits of excellence. I have taught myself basics of developing, AI-ML, design and even consult. I like to put my best into everything and build things worthwhile for the world. This passion is what guided me while working on the \"it girls\" website. I wanted to solve the problems that my seniors faced while navigating the maze of mentorship programs or internships.",
-    photo: "/team/falguni.jpg"
-  },
-  { 
-    name: "Avani Singhal", 
-    bio: "Hey!! I'm Avani Singhal, a first-year Data Science & AI student at IIT Roorkee. While most people see data as just numbers, I see a puzzle of Data Structures waiting to be solved. I joined this project because I wanted to take the theories I'm learning in class and crash-test them against the real-world web. If there's a way to implement a more elegant or efficient way to handle data, I'm probably obsessing over it right now.",
-    photo: "/team/avani.jpg"
-  },
-  { 
-    name: "Anushna Chakrabarti", 
-    bio: "Hii!! I am Anushna Chakrabarti,  a student at IIT Roorkee  in Metallurgical and Materials Engineering. I am someone with a creative and analytical mind. And design is something that satisfies both these sides of my brain together for me. Which is why I had a special fascination with this project, it was the perfect amalgamation of creativity and analytics.",
-    photo: "/team/anushna.jpg"
-  },
-]
+function cleanText(value?: string | null, fallback = "N/A") {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : fallback
+}
 
-export default function Home() {
-  const [selectedInternship, setSelectedInternship] = useState<number | null>(null)
+function slugify(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+}
+
+function initials(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "OP"
+  return parts.map((part) => part[0]).join("").slice(0, 3).toUpperCase()
+}
+
+function normalizeMode(value?: string | null): ModeFilter | null {
+  const mode = cleanText(value, "").toLowerCase()
+  if (!mode) return null
+  if (mode.includes("remote") || mode.includes("work from home") || mode.includes("wfh") || mode.includes("online")) return "Remote"
+  if (mode.includes("hybrid")) return "Hybrid"
+  if (mode.includes("onsite") || mode.includes("on-site") || mode.includes("office") || mode.includes("in-office")) return "On-site"
+  return null
+}
+
+function hasCgpaRequirement(value?: string | null) {
+  const cgpa = cleanText(value, "").toLowerCase()
+  if (!cgpa) return false
+  return ![
+    "no cutoff",
+    "not mentioned",
+    "not specified",
+    "n/a",
+    "na",
+    "none",
+    "any",
+  ].some((term) => cgpa.includes(term))
+}
+
+function splitBranchTokens(value?: string | null) {
+  return cleanText(value, "")
+    .split(/[,/]|\band\b/i)
+    .map((token) => token.trim())
+    .filter((token) => token && !/^(any|n\/a|na|not mentioned|not specified)$/i.test(token))
+}
+
+function matchesBranch(value: string, selectedBranch: string) {
+  if (selectedBranch === "all") return true
+  if (/^(any|n\/a|na)$/i.test(value)) return true
+  return value.toLowerCase().includes(selectedBranch.toLowerCase())
+}
+
+function extractStipendAmount(value?: string | null) {
+  const stipend = cleanText(value, "").toLowerCase()
+  if (!stipend || stipend.includes("not disclosed") || stipend.includes("n/a") || stipend.includes("na")) return null
+
+  const match = stipend.match(/₹\s*([\d,]+(?:\.\d+)?)\s*(k|m|l|lac|lakh|lakhs)?/i) ?? stipend.match(/([\d,]+(?:\.\d+)?)\s*(k|m|l|lac|lakh|lakhs)?/i)
+  if (!match) return null
+
+  const amount = Number.parseFloat(match[1].replace(/,/g, ""))
+  if (!Number.isFinite(amount)) return null
+
+  const unit = (match[2] ?? "").toLowerCase()
+  const multiplier = unit === "k" ? 1000 : unit === "m" ? 1000000 : unit === "l" || unit === "lac" || unit === "lakh" || unit === "lakhs" ? 100000 : 1
+  return amount * multiplier
+}
+
+function classifyStipend(value?: string | null): StipendFilter | null {
+  const amount = extractStipendAmount(value)
+  if (amount === null) return null
+  if (amount >= 50000) return "high"
+  if (amount >= 15000) return "mid"
+  return "low"
+}
+
+function stipendBadge(value?: string | null) {
+  const amount = extractStipendAmount(value)
+  if (amount === null) return cleanText(value)
+  if (amount >= 50000) return "₹₹₹"
+  if (amount >= 15000) return "₹₹"
+  return "₹"
+}
+
+function fetchAllPages<T>(fetchPage: (page: number) => Promise<{ meta: { total: number; page_size: number }; data: T[] }>) {
+  return fetchPage(1).then(async (firstPage) => {
+    const pageSize = firstPage.meta.page_size || 100
+    const totalPages = Math.max(1, Math.ceil(firstPage.meta.total / pageSize))
+
+    if (totalPages === 1) {
+      return firstPage.data
+    }
+
+    const remainingPages = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, index) => fetchPage(index + 2)),
+    )
+
+    return [firstPage.data, ...remainingPages.map((page) => page.data)].flat()
+  })
+}
+
+function dedupeInternships(items: InternshipItem[]) {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    const key = [cleanText(item.source, ""), cleanText(item.company, ""), cleanText(item.title, ""), cleanText(item.apply_link, "")].join("::")
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function dedupeMentorships(items: MentorshipItem[]) {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    const key = [cleanText(item.source, ""), cleanText(item.company, ""), cleanText(item.programme_name, ""), cleanText(item.apply_link, "")].join("::")
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function buildInternshipCard(item: InternshipItem): LoadedInternship {
+  const stipend = cleanText(item.stipend)
+  const branch = cleanText(item.branch_required)
+  const cgpa = cleanText(item.cgpa_required)
+
+  return {
+    ...item,
+    id: slugify(`${cleanText(item.source, "unknown")}-${item.company}-${item.title}-${cleanText(item.apply_link, "no-link")}`),
+    stipendTier: classifyStipend(stipend),
+    hasCgpa: hasCgpaRequirement(cgpa),
+    source: cleanText(item.source),
+    title: cleanText(item.title),
+    company: cleanText(item.company),
+    location: cleanText(item.location),
+    stipend,
+    duration: cleanText(item.duration),
+    mode: cleanText(item.mode),
+    internship_type: cleanText(item.internship_type),
+    branch_required: branch,
+    cgpa_required: cgpa,
+    gender: cleanText(item.gender),
+    eligibility_raw: cleanText(item.eligibility_raw),
+    skills: cleanText(item.skills),
+    deadline: cleanText(item.deadline),
+    applicants: cleanText(item.applicants),
+    apply_link: cleanText(item.apply_link, "#apply"),
+  }
+}
+
+function buildMentorshipCard(item: MentorshipItem): LoadedMentorship {
+  return {
+    ...item,
+    id: slugify(`${cleanText(item.source, "unknown")}-${item.company}-${item.programme_name}-${cleanText(item.apply_link, "no-link")}`),
+    hasCgpa: hasCgpaRequirement(item.cgpa_required),
+    source: cleanText(item.source),
+    company: cleanText(item.company),
+    programme_name: cleanText(item.programme_name),
+    programme_type: cleanText(item.programme_type),
+    description: cleanText(item.description),
+    duration: cleanText(item.duration),
+    mode: cleanText(item.mode),
+    eligibility: cleanText(item.eligibility),
+    branch_required: cleanText(item.branch_required),
+    cgpa_required: cleanText(item.cgpa_required),
+    gender: cleanText(item.gender),
+    stipend_or_benefits: cleanText(item.stipend_or_benefits),
+    deadline: cleanText(item.deadline),
+    apply_link: cleanText(item.apply_link, "#apply"),
+    how_to_apply: cleanText(item.how_to_apply),
+  }
+}
+
+function FilterBar({ stipend, setStipend, mode, setMode, cgpa, setCgpa, branch, setBranch, branches, hidePay }: { stipend: StipendFilter; setStipend: (v: StipendFilter) => void; mode: ModeFilter; setMode: (v: ModeFilter) => void; cgpa: CgpaFilter; setCgpa: (v: CgpaFilter) => void; branch: string; setBranch: (v: string) => void; branches: string[]; hidePay?: boolean }) {
+  const chipBase = `${spaceMono.className} rounded-full border px-3 py-1.5 text-[0.62rem] tracking-[0.08em] transition`
+  const active = "border-[#ff5a1f] bg-[#ff5a1f] text-white"
+  const inactive = "border-slate-200 bg-white text-slate-600 hover:border-[#ff5a1f] hover:text-[#ff5a1f]"
 
   return (
-    <div className="min-h-screen bg-[#FFFFFA] text-[#000F08]">
-      {/* Paper texture overlay */}
-      <div 
-        className="fixed inset-0 pointer-events-none z-[9999] opacity-50"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E")`
-        }}
-      />
-
-      {/* SVG Filters */}
-      <svg className="absolute w-0 h-0">
-        <defs>
-          <filter id="paper-crumple">
-            <feTurbulence type="fractalNoise" baseFrequency="0.02 0.03" numOctaves={3} seed={8} result="noise"/>
-            <feDisplacementMap in="SourceGraphic" in2="noise" scale={3} xChannelSelector="R" yChannelSelector="G"/>
-          </filter>
-        </defs>
-      </svg>
-
-      {/* Crumple lines */}
-      <svg className="fixed inset-0 pointer-events-none z-[1]">
-        <line x1="15%" y1="0" x2="22%" y2="100%" stroke="#928779" strokeWidth="0.5" opacity="0.3"/>
-        <line x1="45%" y1="0" x2="40%" y2="100%" stroke="#928779" strokeWidth="0.5" opacity="0.2"/>
-        <line x1="72%" y1="0" x2="78%" y2="100%" stroke="#928779" strokeWidth="0.5" opacity="0.25"/>
-        <line x1="88%" y1="0" x2="91%" y2="100%" stroke="#928779" strokeWidth="0.3" opacity="0.15"/>
-      </svg>
-
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-[100] bg-[#7D0013] px-12 h-14 flex items-center justify-between">
-        <a href="/" className="no-underline text-inherit">
-          <div className={`${playfair.className} !text-4x1 font-bold italic text-[#FFFFFA] tracking-tight cursor-pointer`}>
-            it girls
-          </div>
-         </a>
-        <div className="flex items-center">
-          <a className={`${spaceMono.className} text-[0.7rem] tracking-[0.08em] uppercase text-[#7D0013] px-6 h-10 flex items-center bg-[#FFFFFA] rounded-t-lg cursor-pointer border border-white/10 border-b-0 mr-1`}>
-            Internships
-          </a>
-          <a className={`${spaceMono.className} text-[0.7rem] tracking-[0.08em] uppercase text-[#FFFFFA] px-6 h-10 flex items-center bg-white/10 rounded-t-lg cursor-pointer border border-white/10 border-b-0 mr-1 hover:bg-[#FFFFFA] hover:text-[#7D0013] transition-colors`}>
-            Mentorships
-          </a>
-        </div>
-      </nav>
-
-      {/* Hero Section */}
-      <section className="min-h-screen pt-14 relative flex flex-col items-center overflow-hidden">
-        <div className="relative z-[2] w-full max-w-[1200px] px-12 py-16 flex flex-col items-center">
-          {/* Quote */}
-          <div className="text-center mb-16 animate-fadeUp">
-            <span className={`${playfair.className} text-4xl md:text-5xl lg:text-[4.5rem] font-normal text-[#000F08] leading-tight block`}>
-              build the career
-            </span>
-            <span className={`${playfair.className} text-4xl md:text-5xl lg:text-[5rem] font-normal text-[#7D0013] leading-tight block`}>
-              they said you couldn&apos;t.
-            </span>
-            <p className={`${spaceMono.className} text-[0.72rem] tracking-[0.15em] text-[#928779] uppercase mt-5`}>
-              curated internships & mentorships for women in tech & beyond
-            </p>
-          </div>
-
-          {/* Folders Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-[1100px] px-4 pb-16">
-            {internships.map((intern, index) => (
-              <div 
-                key={index}
-                className="cursor-pointer flex flex-col animate-fadeUp"
-                style={{ animationDelay: `${0.6 + index * 0.15}s` }}
-                onClick={() => setSelectedInternship(index)}
-              >
-                {/* Tabs */}
-                <div className="flex items-end gap-1 pl-0.5">
-                  <div className={`${spaceMono.className} h-[30px] px-2.5 bg-[#6b5f57] rounded-t-lg flex items-center text-[0.68rem] text-[#f5e8c8] tracking-wide border border-white/10 border-b-0`}>
-                    {intern.pay}
-                  </div>
-                  <div className={`${spaceMono.className} h-[30px] px-2.5 bg-[#7a7167] rounded-t-lg flex items-center text-[0.68rem] text-[#FFFFFA] tracking-wide border border-white/10 border-b-0`}>
-                    {intern.duration}
-                  </div>
-                  <div className={`${spaceMono.className} h-[30px] px-2.5 bg-[#84796e] rounded-t-lg flex items-center text-[0.68rem] text-[#FFFFFA] tracking-wide border border-white/10 border-b-0`}>
-                    {intern.location}
-                  </div>
-                </div>
-                {/* Folder Body */}
-                <div className="bg-[#928779] rounded-tr-md rounded-b-md overflow-hidden relative flex-1 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-                  <div 
-                    className="absolute inset-0 opacity-70 mix-blend-multiply pointer-events-none"
-                    style={{
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.18'/%3E%3C/svg%3E")`
-                    }}
-                  />
-                  <div className="relative z-[1] p-4 flex flex-col justify-between min-h-[160px]">
-                    <div>
-                     <div className={`${poppins.className} text-[1.375rem] font-semibold text-[#FFFFFA] leading-tight`}>          {intern.role}
-                     
-                      </div>
-
-                      <div className={`${spaceMono.className} text-[0.8rem] text-white/70 leading-relaxed mt-1`}>
-                        {intern.desc.slice(0, 80)}...
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={`${spaceMono.className} w-7 h-7 rounded-md bg-[#FFFFFA] flex items-center justify-center text-[0.55rem] font-bold text-[#6b6358] tracking-tight`}>
-                          {intern.logo}
-                        </div>
-                        <div className={`${spaceMono.className} text-[0.66rem] text-white/80 tracking-wide`}>
-                          {intern.company}
-                        </div>
-                      </div>
-                      <div className={`${spaceMono.className} text-[0.61rem] text-white/40 tracking-[0.08em] uppercase`}>
-                        tap to open →
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+    <div className="sticky top-[73px] z-30 border-b border-slate-200 bg-white/95 px-6 py-3 backdrop-blur">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-3 lg:px-2">
+        {!hidePay && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={`${spaceMono.className} mr-1 text-[0.56rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>stipend</span>
+            {(["all", "high", "mid", "low"] as StipendFilter[]).map((value) => (
+              <button key={value} className={`${chipBase} ${stipend === value ? active : inactive}`} onClick={() => setStipend(value)}>
+                {value === "all" ? "all" : value === "high" ? "₹₹₹ high" : value === "mid" ? "₹₹ mid" : "₹ low"}
+              </button>
             ))}
           </div>
-        </div>
-      </section>
+        )}
 
-      {/* Companies Carousel */}
-      <section className="py-16 bg-[#FFFFFA] overflow-hidden relative border-t border-[#928779]/20">
-        <p className={`${spaceMono.className} text-[0.65rem] tracking-[0.18em] uppercase text-[#928779] text-center mb-8`}>
-          companies we&apos;ve featured
-        </p>
-        <div className="flex gap-12 animate-scroll hover:[animation-play-state:paused]">
-          {[...companies, ...companies].map((company, i) => (
-            <div 
-              key={i}
-              className={`${spaceMono.className} text-[0.75rem] tracking-[0.08em] text-[#6b6358] px-5 py-2 border border-[#b5a898] rounded-full whitespace-nowrap bg-[#928779]/5 hover:bg-[#7D0013] hover:text-[#FFFFFA] hover:border-[#7D0013] transition-colors cursor-pointer`}
-            >
-              {company}
-            </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className={`${spaceMono.className} mr-1 text-[0.56rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>mode</span>
+          {(["all", "Remote", "On-site", "Hybrid"] as ModeFilter[]).map((value) => (
+            <button key={value} className={`${chipBase} ${mode === value ? active : inactive}`} onClick={() => setMode(value)}>
+              {value === "all" ? "all" : value.toLowerCase()}
+            </button>
           ))}
         </div>
-      </section>
 
-      {/* Feedback Section */}
-      <section className="py-16 px-12 bg-[#f5f0e8] relative">
-        <p className={`${spaceMono.className} text-[0.65rem] tracking-[0.18em] uppercase text-[#928779] text-center mb-10`}>
-          what they said
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-[1100px] mx-auto items-end">
-          {[
-            {
-              quote: "Found my Razorpay internship here within a week. The folder format made it so easy to filter by stipend — I wasn't wasting time on unpaid roles.",
-              author: "Priya M. — IIT Delhi, CSE '25"
-            },
-            {
-              quote: "I was able to find the perfect mentorship program by applying the filters on the site..",
-              author: "Anika R. — BITS Pilani, EEE '24"
-            },
-            {
-              quote: "Applied for three internships in one sitting. Everything I needed — branch eligibility, cgpa cutoff, deadline — was right there. No chasing seniors for info.",
-              author: "Sneha T. — NIT Trichy, ECE '25"
-            }
-          ].map((feedback, i) => (
-            <div 
-              key={i}
-              className="bg-[#FFFFFA] p-6 pb-12 relative border-l border-r border-t border-[#928779]/20"
-              style={{
-                clipPath: "polygon(0 0, 100% 0, 100% 88%, 96% 92%, 92% 88%, 88% 93%, 84% 88%, 80% 92%, 76% 88%, 72% 92%, 68% 88%, 64% 93%, 60% 88%, 56% 92%, 52% 88%, 48% 93%, 44% 88%, 40% 92%, 36% 88%, 32% 93%, 28% 88%, 24% 92%, 20% 88%, 16% 93%, 12% 88%, 8% 92%, 4% 88%, 0 92%)",
-                transform: i === 1 ? "rotate(-1.5deg)" : i === 2 ? "rotate(1deg)" : undefined
-              }}
-            >
-              <div className={`${poppins.className} text-base italic text-[#000F08] leading-relaxed mb-4`}>
-                &quot;{feedback.quote}&quot;
-              </div>
-              <div className={`${spaceMono.className} text-[0.6rem] text-[#928779] tracking-[0.1em] uppercase`}>
-                {feedback.author}
-              </div>
-            </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className={`${spaceMono.className} mr-1 text-[0.56rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>cgpa</span>
+          {(["all", "required", "none"] as CgpaFilter[]).map((value) => (
+            <button key={value} className={`${chipBase} ${cgpa === value ? active : inactive}`} onClick={() => setCgpa(value)}>
+              {value === "all" ? "all" : value === "required" ? "required" : "no cutoff"}
+            </button>
           ))}
         </div>
-      </section>
 
-      {/* About Us Section - New Folder Design */}
-      <AboutSection teamMembers={teamMembers} spaceMono={spaceMono} dmSerif={dmSerif} poppins={poppins} />
-
-      {/* Footer */}
-      <footer className={`${spaceMono.className} bg-[#000F08] text-white/40 text-center py-8 text-[0.6rem] tracking-[0.12em] uppercase`}>
-        © 2025 The Intern Files — built with intention, for you
-      </footer>
-
-      {/* Notebook Modal */}
-      {selectedInternship !== null && (
-        <div 
-          className="fixed inset-0 bg-[#000F08]/70 z-[500] flex items-center justify-center backdrop-blur-sm animate-fadeIn"
-          onClick={() => setSelectedInternship(null)}
-        >
-          <div 
-            className="w-[min(680px,90vw)] max-h-[80vh] bg-[#faf8f2] rounded-r-xl relative flex animate-scaleIn"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Spiral binding */}
-            <div className="w-9 bg-[#d4cfc4] flex-shrink-0 flex flex-col items-center pt-5 gap-3.5 border-r border-[#c8c3b8]">
-              {Array.from({ length: 20 }).map((_, i) => (
-                <div key={i} className="w-4.5 h-4.5 border-2 border-[#7D0013] rounded-full bg-transparent" />
-              ))}
-            </div>
-            {/* Content */}
-            <div 
-              className="flex-1 p-8 pl-6 overflow-y-auto relative"
-              style={{
-                background: `repeating-linear-gradient(transparent, transparent 27px, rgba(125,0,19,0.08) 27px, rgba(125,0,19,0.08) 28px)`,
-                backgroundSize: "100% 28px",
-                backgroundPosition: "0 8px"
-              }}
-            >
-              {/* Red margin line */}
-              <div className="absolute left-14 top-0 bottom-0 w-px bg-red-400/25 pointer-events-none" />
-              
-              <button 
-                className={`${spaceMono.className} absolute top-3 right-4 text-[0.7rem] text-[#928779] hover:text-[#7D0013] tracking-wide`}
-                onClick={() => setSelectedInternship(null)}
-              >
-                close ✕
+        {branches.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={`${spaceMono.className} mr-1 text-[0.56rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>branch</span>
+            <button className={`${chipBase} ${branch === "all" ? active : inactive}`} onClick={() => setBranch("all")}>all</button>
+            {branches.map((item) => (
+              <button key={item} className={`${chipBase} ${branch === item ? active : inactive}`} onClick={() => setBranch(item)}>
+                {item}
               </button>
-
-              <h2 className={`${poppins.className} text-2xl text-[#7D0013] italic mb-1`}>
-                {internships[selectedInternship].role}
-              </h2>
-              <p className={`${spaceMono.className} text-[0.65rem] text-[#928779] tracking-[0.1em] uppercase mb-6`}>
-                {internships[selectedInternship].company}
-              </p>
-
-              <div className="w-full h-px bg-[#7D0013]/15 my-4" />
-
-              {[
-                { label: "Stipend", value: internships[selectedInternship].stipend, highlight: true },
-                { label: "Duration", value: internships[selectedInternship].duration },
-                { label: "Location", value: internships[selectedInternship].location },
-                { label: "Mode", value: internships[selectedInternship].mode },
-                { label: "Branch", value: internships[selectedInternship].branch },
-                { label: "CGPA", value: internships[selectedInternship].cgpa },
-                { label: "Deadline", value: internships[selectedInternship].deadline, highlight: true },
-              ].map((row, i) => (
-                <div key={i} className="flex gap-4 mb-2.5 items-baseline">
-                  <span className={`${spaceMono.className} text-[0.6rem] text-[#928779] uppercase tracking-[0.1em] min-w-[90px] flex-shrink-0`}>
-                    {row.label}
-                  </span>
-                  <span className={`${row.highlight ? `${poppins.className} text-sm text-[#7D0013] italic` : `${libreBaskerville.className} text-sm text-[#000F08]`}`}>
-                    {row.value}
-                  </span>
-                </div>
-              ))}
-
-              <div className="w-full h-px bg-[#7D0013]/15 my-4" />
-
-              <p className={`${libreBaskerville.className} text-sm text-[#000F08] leading-relaxed`}>
-                {internships[selectedInternship].desc}
-              </p>
-
-              <button className={`${spaceMono.className} mt-6 px-8 py-3 bg-[#7D0013] text-[#FFFFFA] text-[0.7rem] tracking-[0.1em] uppercase rounded-sm hover:bg-[#5a000e] transition-colors`}>
-                Apply Now →
-              </button>
-            </div>
+            ))}
           </div>
-        </div>
-      )}
-
-      <style jsx>{`
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(24px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes scaleIn {
-          from { opacity: 0; transform: translateY(30px) scale(0.95); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes scroll {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-fadeUp {
-          animation: fadeUp 0.8s ease forwards;
-          opacity: 0;
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease forwards;
-        }
-        .animate-scaleIn {
-          animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-        }
-        .animate-scroll {
-          animation: scroll 22s linear infinite;
-          width: max-content;
-        }
-      `}</style>
+        )}
+      </div>
     </div>
   )
 }
 
-// About Section Component with new folder design
-function AboutSection({ 
-  teamMembers, 
-  spaceMono, 
-  dmSerif,
-  poppins
-}: { 
-  teamMembers: { name: string; bio: string; photo: string }[]
-  spaceMono: { className: string }
-  dmSerif: { className: string }
-  poppins: { className: string }
-}) {
-  const [selectedMember, setSelectedMember] = useState<number | null>(null)
-  
+function EmptyState({ clearFn }: { clearFn: () => void }) {
   return (
-    <section className="py-20 px-8 flex justify-center bg-[#FFFFFA] border-t border-[#928779]/15">
-      <div className="relative w-full max-w-[700px]">
-        {/* Main folder */}
-        <div className="relative">
-          {/* Tabs at top */}
-          <div className="flex items-end gap-1 pl-4 relative z-20">
-            {teamMembers.map((member, i) => (
-              <button 
-                key={i}
-                onClick={() => setSelectedMember(selectedMember === i ? null : i)}
-                className={`${spaceMono.className} h-9 px-4 rounded-t-lg flex items-center text-[0.77rem] tracking-wide border border-[#c4b8a8]/50 border-b-0 transition-all duration-200 cursor-pointer ${
-                  selectedMember === i 
-                    ? "bg-[#e8d5e0] text-[#7D0013] border-[#e8d5e0]" 
-                    : "bg-[#c4b8a8] text-[#5a5048] hover:bg-[#d4c8b8]"
-                }`}
-              >
-                {member.name}
-              </button>
-            ))}
+    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 py-16 text-center">
+      <p className={`${spaceMono.className} text-[0.75rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>no results match your filters</p>
+      <button onClick={clearFn} className="mt-4 text-sm font-medium text-[#ff5a1f] underline underline-offset-4">
+        clear filters
+      </button>
+    </div>
+  )
+}
+
+function SectionHeading({ kicker, title, text }: { kicker: string; title: string; text: string }) {
+  return (
+    <div className="max-w-3xl">
+      <p className={`${spaceMono.className} text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-[#ff5a1f]`}>{kicker}</p>
+      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">{title}</h2>
+      <p className="mt-3 text-sm leading-7 text-slate-600 md:text-base">{text}</p>
+    </div>
+  )
+}
+
+function DetailsModal({
+  open,
+  title,
+  subtitle,
+  rows,
+  description,
+  ctaLabel,
+  ctaLink,
+  onClose,
+}: {
+  open: boolean
+  title: string
+  subtitle: string
+  rows: { label: string; value: string; highlight?: boolean }[]
+  description: string
+  ctaLabel: string
+  ctaLink: string
+  onClose: () => void
+}) {
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+          <div>
+            <p className={`${spaceMono.className} text-[0.65rem] font-semibold tracking-[0.14em] uppercase text-[#ff5a1f]`}>details</p>
+            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{title}</h3>
+            <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
           </div>
+          <button onClick={onClose} className="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-600 transition hover:border-[#ff5a1f] hover:text-[#ff5a1f]">
+            Close
+          </button>
+        </div>
 
-          {/* Folder body with vertical tab */}
-          <div className="relative flex">
-            {/* Vertical "About Us" tab on the left - connected to folder */}
-            <button 
-              onClick={() => setSelectedMember(null)}
-              className={`w-10 bg-[#c4b8a8] text-[#5a5048] text-[0.99rem] tracking-wide border border-[#c4b8a8]/50 border-r-0 flex items-center justify-center cursor-pointer hover:bg-[#d4c8b8] transition-all duration-200 self-stretch font-[family-name:var(--font-inter)]`}
-              style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
-            >
-              About Us
-            </button>
-
-            {/* Folder body */}
-            <div className="relative flex-1 bg-[#d4c8b8] rounded-tr-lg rounded-br-lg rounded-bl-lg overflow-visible shadow-xl">
-              {/* Paper texture */}
-              <div 
-                className="absolute inset-0 opacity-60 mix-blend-multiply pointer-events-none rounded-tr-lg rounded-br-lg rounded-bl-lg"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E")`
-                }}
-              />
-
-              {/* Inner content */}
-              <div className="relative z-10 p-8 min-h-[350px]">
-                {selectedMember === null ? (
-                  // Default content - About The Intern Files
-                  <div className="flex flex-col items-center justify-center h-full text-center py-4">
-                    <h3 className={`${playfair.className} text-2xl font semi-bold text-[#2a2520] mb-2`}>
-                      it girls
-                    </h3>
-                  <p className={`${spaceMono.className} text-[0.715rem] text-[#7D0013] tracking-[0.15em] uppercase mb-5`}>
-                    A project by women, built by women at IIT Roorkee
-                  </p>
-                  <p className="text-sm text-[#5a5048] leading-relaxed max-w-[480px]">
-                    We were tired of missing deadlines, chasing seniors, and finding out about internships two days too late. So we built the thing we wished existed — a clean, honest, no-fluff board of opportunities curated for college women who are serious about their careers.
-                  </p>
-                  <p className={`${spaceMono.className} text-[0.66rem] text-[#928779] mt-6 tracking-wide`}>
-                    (click a name to learn more)
-                  </p>
-                </div>
-              ) : (
-                // Selected member content
-                <div className="flex gap-6 items-start py-2">
-                  {/* Photo */}
-                  <div className="w-44 h-56 flex-shrink-0 border-2 border-[#5a5048] bg-[#e8e0d4] overflow-hidden relative">
-                    <Image 
-                      src={teamMembers[selectedMember].photo}
-                      alt={teamMembers[selectedMember].name}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                  
-                  {/* Bio content */}
-                  <div className="flex-1">
-                    <div className="font-[family-name:var(--font-caveat)] text-2xl text-[#2a2520] mb-1 border-b border-[#5a5048]/30 pb-1">
-                      {teamMembers[selectedMember].name}
-                    </div>
-                    {/* Handwritten lines effect */}
-                    <div className="mt-4 space-y-4">
-                      <p className="text-sm text-[#5a5048] leading-relaxed border-b border-[#5a5048]/20 pb-2">
-                        {teamMembers[selectedMember].bio}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {rows.map((row) => (
+            <div key={row.label} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className={`${spaceMono.className} text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>{row.label}</p>
+              <p className={`mt-1 text-sm ${row.highlight ? "font-semibold text-slate-950" : "text-slate-800"}`}>{row.value}</p>
             </div>
-          </div>
-          </div>
+          ))}
+        </div>
+
+        <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+          <p className={`${spaceMono.className} text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>summary</p>
+          <p className="mt-2 text-sm leading-6 text-slate-700">{description}</p>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <a href={ctaLink} target="_blank" rel="noreferrer" className="rounded-full bg-[#ff5a1f] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#e94f16]">
+            {ctaLabel}
+          </a>
+          <span className="text-sm text-slate-500">Use this as a starting point for your application.</span>
         </div>
       </div>
-    </section>
+    </div>
+  )
+}
+
+export default function Home() {
+  const [page, setPage] = useState<"home" | "internships" | "mentorships">("home")
+  const [selectedInternship, setSelectedInternship] = useState<LoadedInternship | null>(null)
+  const [selectedMentorship, setSelectedMentorship] = useState<LoadedMentorship | null>(null)
+
+  const [internshipItems, setInternshipItems] = useState<LoadedInternship[]>([])
+  const [mentorshipItems, setMentorshipItems] = useState<LoadedMentorship[]>([])
+  const [internshipLoading, setInternshipLoading] = useState(false)
+  const [mentorshipLoading, setMentorshipLoading] = useState(false)
+  const [internshipError, setInternshipError] = useState<string | null>(null)
+  const [mentorshipError, setMentorshipError] = useState<string | null>(null)
+
+  const [iStipend, setIStipend] = useState<StipendFilter>("all")
+  const [iMode, setIMode] = useState<ModeFilter>("all")
+  const [iCgpa, setICgpa] = useState<CgpaFilter>("all")
+  const [iBranch, setIBranch] = useState("all")
+
+  const [mMode, setMMode] = useState<ModeFilter>("all")
+  const [mCgpa, setMCgpa] = useState<CgpaFilter>("all")
+  const [mBranch, setMBranch] = useState("all")
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadInternships() {
+      setInternshipLoading(true)
+      setInternshipError(null)
+      try {
+        const items = await fetchAllPages((pageNumber) => fetchInternships({ page: pageNumber, page_size: 100 }))
+        if (!cancelled) {
+          setInternshipItems(dedupeInternships(items).map(buildInternshipCard))
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setInternshipError(error instanceof Error ? error.message : "Failed to load internships.")
+        }
+      } finally {
+        if (!cancelled) {
+          setInternshipLoading(false)
+        }
+      }
+    }
+
+    async function loadMentorships() {
+      setMentorshipLoading(true)
+      setMentorshipError(null)
+      try {
+        const items = await fetchAllPages((pageNumber) => fetchMentorships({ page: pageNumber, page_size: 100 }))
+        if (!cancelled) {
+          setMentorshipItems(dedupeMentorships(items).map(buildMentorshipCard))
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMentorshipError(error instanceof Error ? error.message : "Failed to load mentorships.")
+        }
+      } finally {
+        if (!cancelled) {
+          setMentorshipLoading(false)
+        }
+      }
+    }
+
+    void loadInternships()
+    void loadMentorships()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const internBranches = useMemo(() => {
+    const set = new Set<string>()
+    internshipItems.forEach((item) => splitBranchTokens(item.branch_required).forEach((branch) => set.add(branch)))
+    return Array.from(set)
+  }, [internshipItems])
+
+  const mentorBranches = useMemo(() => {
+    const set = new Set<string>()
+    mentorshipItems.forEach((item) => splitBranchTokens(item.branch_required).forEach((branch) => set.add(branch)))
+    return Array.from(set)
+  }, [mentorshipItems])
+
+  const filteredInterns = useMemo(() => internshipItems.filter((item) => {
+    if (iStipend !== "all" && item.stipendTier !== iStipend) return false
+    const normalizedMode = normalizeMode(item.mode)
+    if (iMode !== "all" && normalizedMode !== iMode) return false
+    if (iCgpa === "required" && !item.hasCgpa) return false
+    if (iCgpa === "none" && item.hasCgpa) return false
+    if (!matchesBranch(item.branch_required, iBranch)) return false
+    return true
+  }), [internshipItems, iStipend, iMode, iCgpa, iBranch])
+
+  const filteredMentors = useMemo(() => mentorshipItems.filter((item) => {
+    const normalizedMode = normalizeMode(item.mode)
+    if (mMode !== "all" && normalizedMode !== mMode) return false
+    if (mCgpa === "required" && !item.hasCgpa) return false
+    if (mCgpa === "none" && item.hasCgpa) return false
+    if (!matchesBranch(item.branch_required, mBranch)) return false
+    return true
+  }), [mentorshipItems, mMode, mCgpa, mBranch])
+
+  const navigate = (nextPage: "home" | "internships" | "mentorships") => {
+    setPage(nextPage)
+    setSelectedInternship(null)
+    setSelectedMentorship(null)
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const featuredInternships = internshipItems.slice(0, 6)
+
+  const resetInternFilters = () => {
+    setIStipend("all")
+    setIMode("all")
+    setICgpa("all")
+    setIBranch("all")
+  }
+
+  const resetMentorFilters = () => {
+    setMMode("all")
+    setMCgpa("all")
+    setMBranch("all")
+  }
+
+  return (
+    <div className={`${inter.className} min-h-screen bg-white text-slate-950`}>
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
+          <button onClick={() => navigate("home")} className="text-lg font-semibold tracking-tight text-slate-950">
+            it girls
+          </button>
+
+          <nav className="flex items-center gap-1">
+            {(["internships", "mentorships"] as const).map((item) => (
+              <button
+                key={item}
+                onClick={() => navigate(item)}
+                className={`${spaceMono.className} rounded-t-xl border border-slate-200 border-b-0 px-5 py-2 text-[0.68rem] font-semibold tracking-[0.12em] uppercase transition ${page === item ? "bg-[#ff5a1f] text-white" : "bg-white text-slate-600 hover:text-[#ff5a1f]"}`}
+              >
+                {item}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </header>
+
+      {page === "home" && (
+        <main>
+          <section className="mx-auto max-w-7xl px-6 pb-14 pt-16 lg:px-8 lg:pt-20">
+            <div className="max-w-4xl">
+              <h1 className="text-4xl font-semibold tracking-tight text-slate-950 md:text-6xl lg:text-7xl">
+                <span className="block">build the career</span>
+                <span className="block text-[#ff5a1f]">they said you couldn&apos;t.</span>
+              </h1>
+              <p className={`${spaceMono.className} mt-5 text-[0.72rem] tracking-[0.15em] uppercase text-slate-500`}>
+                curated internships &amp; mentorships for women in tech &amp; beyond
+              </p>
+              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 md:text-lg">
+                A cleaner, faster version of the old folder system, rebuilt with the same intent and the full backend-fed dataset.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <a href="#internships" className="rounded-full bg-[#ff5a1f] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#e94f16]">Browse internships</a>
+              </div>
+            </div>
+          </section>
+
+          <section className="border-y border-slate-200 bg-slate-50/70 px-6 py-10 lg:px-8">
+            <div className="mx-auto max-w-7xl">
+              <p className={`${spaceMono.className} text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-slate-500`}>featured companies</p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {companies.map((company) => (
+                  <span key={company} className="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700 shadow-sm">
+                    {company}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section id="internships" className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
+            <SectionHeading kicker="featured" title="Some of the current internships" text={`Loaded from the backend: ${internshipItems.length || 0} internships and ${mentorshipItems.length || 0} mentorships.`} />
+            {internshipLoading ? (
+              <div className="mt-10 rounded-2xl border border-slate-200 bg-slate-50 py-16 text-center text-sm text-slate-500">Loading internships...</div>
+            ) : internshipError ? (
+              <div className="mt-10 rounded-2xl border border-red-200 bg-red-50 py-16 text-center text-sm text-red-700">{internshipError}</div>
+            ) : (
+              <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {featuredInternships.map((intern, index) => (
+                  <FolderCard
+                    key={intern.id}
+                    title={intern.title}
+                    company={intern.company}
+                    meta={[intern.stipend, intern.duration, intern.location]}
+                    description={intern.skills !== "N/A" ? intern.skills : intern.eligibility_raw}
+                    cta="Open internship"
+                    onClick={() => setSelectedInternship(intern)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="border-y border-slate-200 bg-white px-6 py-10 lg:px-8">
+            <div className="mx-auto max-w-7xl">
+              <p className={`${spaceMono.className} text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-slate-500`}>what they said</p>
+              <div className="mt-6 grid gap-5 md:grid-cols-3">
+                {[
+                  {
+                    quote: "Found my Razorpay internship here within a week. The folder format made it so easy to filter by stipend — I wasn't wasting time on unpaid roles.",
+                    author: "Priya M. — IIT Delhi, CSE '25",
+                  },
+                  {
+                    quote: "The mentorship section connected me with a PM at Google who literally changed how I think about my career. I had no idea something like this existed for us.",
+                    author: "Anika R. — BITS Pilani, EEE '24",
+                  },
+                  {
+                    quote: "Applied for three internships in one sitting. Everything I needed — branch eligibility, cgpa cutoff, deadline — was right there. No chasing seniors for info.",
+                    author: "Sneha T. — NIT Trichy, ECE '25",
+                  },
+                ].map((item) => (
+                  <div key={item.author} className="rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
+                    <p className="text-sm leading-7 text-slate-700">&quot;{item.quote}&quot;</p>
+                    <p className={`${spaceMono.className} mt-4 text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-[#ff5a1f]`}>{item.author}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <footer className="border-t border-slate-200 px-6 py-8 lg:px-8">
+            <div className="mx-auto flex max-w-7xl flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <p className="text-sm text-slate-500">it girls</p>
+              <p className={`${spaceMono.className} text-[0.64rem] font-semibold tracking-[0.14em] uppercase text-slate-400`}>internships · mentorships · yc colors</p>
+            </div>
+          </footer>
+        </main>
+      )}
+
+      {page === "internships" && (
+        <main>
+          <section className="mx-auto max-w-7xl px-6 pt-16 lg:px-8 lg:pt-20">
+            <div className="max-w-4xl">
+              <p className={`${spaceMono.className} text-[0.72rem] font-semibold tracking-[0.18em] uppercase text-[#ff5a1f]`}>internships</p>
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">All open roles, cleaned up and easy to scan.</h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">This tab now loads the full internship dataset from the backend, so you get the complete list instead of six samples.</p>
+            </div>
+          </section>
+
+          <FilterBar stipend={iStipend} setStipend={setIStipend} mode={iMode} setMode={setIMode} cgpa={iCgpa} setCgpa={setICgpa} branch={iBranch} setBranch={setIBranch} branches={internBranches} />
+
+          <section className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+            {internshipLoading ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 py-16 text-center text-sm text-slate-500">Loading internships...</div>
+            ) : internshipError ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 py-16 text-center text-sm text-red-700">{internshipError}</div>
+            ) : filteredInterns.length === 0 ? (
+              <EmptyState clearFn={resetInternFilters} />
+            ) : (
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {filteredInterns.map((intern) => (
+                  <FolderCard
+                    key={intern.id}
+                    title={intern.title}
+                    company={intern.company}
+                    meta={[stipendBadge(intern.stipend), intern.duration, intern.location]}
+                    description={intern.skills !== "N/A" ? intern.skills : intern.eligibility_raw}
+                    cta="Open internship"
+                    onClick={() => setSelectedInternship(intern)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </main>
+      )}
+
+      {page === "mentorships" && (
+        <main>
+          <section className="mx-auto max-w-7xl px-6 pt-16 lg:px-8 lg:pt-20">
+            <div className="max-w-4xl">
+              <p className={`${spaceMono.className} text-[0.72rem] font-semibold tracking-[0.18em] uppercase text-[#ff5a1f]`}>mentorships</p>
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">Guidance with structure.</h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">The mentorship dataset is loaded from the backend as well, so the full list is available and filterable.</p>
+            </div>
+          </section>
+
+          <FilterBar stipend="all" setStipend={() => {}} mode={mMode} setMode={setMMode} cgpa={mCgpa} setCgpa={setMCgpa} branch={mBranch} setBranch={setMBranch} branches={mentorBranches} hidePay />
+
+          <section className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+            {mentorshipLoading ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 py-16 text-center text-sm text-slate-500">Loading mentorships...</div>
+            ) : mentorshipError ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 py-16 text-center text-sm text-red-700">{mentorshipError}</div>
+            ) : filteredMentors.length === 0 ? (
+              <EmptyState clearFn={resetMentorFilters} />
+            ) : (
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {filteredMentors.map((mentorship) => (
+                  <FolderCard
+                    key={mentorship.id}
+                    title={mentorship.programme_name}
+                    company={`${mentorship.company} · ${mentorship.programme_type}`}
+                    meta={[mentorship.duration, mentorship.mode, mentorship.deadline]}
+                    description={mentorship.description}
+                    cta="Open mentorship"
+                    onClick={() => setSelectedMentorship(mentorship)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </main>
+      )}
+
+      <DetailsModal
+        open={selectedInternship !== null}
+        title={selectedInternship?.title ?? ""}
+        subtitle={selectedInternship?.company ?? ""}
+        rows={selectedInternship ? [
+          { label: "Source", value: selectedInternship.source },
+          { label: "Stipend", value: selectedInternship.stipend, highlight: true },
+          { label: "Duration", value: selectedInternship.duration },
+          { label: "Location", value: selectedInternship.location },
+          { label: "Mode", value: selectedInternship.mode },
+          { label: "Type", value: selectedInternship.internship_type },
+          { label: "Branch", value: selectedInternship.branch_required },
+          { label: "CGPA", value: selectedInternship.cgpa_required },
+          { label: "Open to", value: selectedInternship.gender },
+          { label: "Deadline", value: selectedInternship.deadline, highlight: true },
+        ] : []}
+        description={selectedInternship ? (selectedInternship.skills !== "N/A" ? selectedInternship.skills : selectedInternship.eligibility_raw) : ""}
+        ctaLabel="Apply now"
+        ctaLink={selectedInternship?.apply_link ?? "#"}
+        onClose={() => setSelectedInternship(null)}
+      />
+
+      <DetailsModal
+        open={selectedMentorship !== null}
+        title={selectedMentorship?.programme_name ?? ""}
+        subtitle={selectedMentorship ? `${selectedMentorship.company} · ${selectedMentorship.programme_type}` : ""}
+        rows={selectedMentorship ? [
+          { label: "Source", value: selectedMentorship.source },
+          { label: "Duration", value: selectedMentorship.duration },
+          { label: "Mode", value: selectedMentorship.mode },
+          { label: "Branch", value: selectedMentorship.branch_required },
+          { label: "CGPA", value: selectedMentorship.cgpa_required },
+          { label: "Open to", value: selectedMentorship.gender },
+          { label: "Deadline", value: selectedMentorship.deadline, highlight: true },
+        ] : []}
+        description={selectedMentorship ? selectedMentorship.how_to_apply : ""}
+        ctaLabel="Express interest"
+        ctaLink={selectedMentorship?.apply_link ?? "#"}
+        onClose={() => setSelectedMentorship(null)}
+      />
+    </div>
   )
 }

@@ -9,7 +9,7 @@ const caveat = Caveat({ subsets: ["latin"], variable: "--font-caveat" });
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: 'The Intern Files',
+  title: 'it girls',
   description: 'Curated internships & mentorships for women in tech & beyond',
   generator: 'v0.app',
   icons: {
