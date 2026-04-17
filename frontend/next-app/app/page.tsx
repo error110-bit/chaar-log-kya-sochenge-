@@ -97,8 +97,15 @@ function normalizeCompanyText(value?: string | null) {
 
 function normalizeReadableText(value: string) {
   return value
+    .replace(/\s+,/g, ",")
+    .replace(/,([^\s])/g, ", $1")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/([a-zA-Z])(\d)/g, "$1 $2")
     .replace(/(\d)([a-zA-Z])/g, "$1 $2")
+    .replace(/₹(?=\d)/g, "₹ ")
+    .replace(/\bupto\b/gi, "up to")
+    .replace(/(lpa|job|post|offer|skill)(?=[a-zA-Z])/gi, "$1 ")
+    .replace(/(ago)(?=job)/gi, "$1 ")
     .replace(/(duration|reviews)(?=[a-zA-Z₹\d])/gi, "$1 ")
     .replace(/\s+/g, " ")
     .trim()
@@ -304,8 +311,8 @@ function buildInternshipCard(item: InternshipItem): LoadedInternship {
     branch_required: branch,
     cgpa_required: cgpa,
     gender: cleanText(item.gender),
-    eligibility_raw: cleanText(item.eligibility_raw),
-    skills: cleanText(item.skills),
+    eligibility_raw: normalizeReadableText(cleanText(item.eligibility_raw)),
+    skills: normalizeReadableText(cleanText(item.skills)),
     deadline: cleanText(item.deadline),
     applicants: cleanText(item.applicants),
     apply_link: cleanText(item.apply_link, "#apply"),
@@ -503,6 +510,7 @@ function DetailsModal({
   onClose: () => void
 }) {
   if (!open) return null
+  const normalizedDescription = normalizeReadableText(description)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm" onClick={onClose}>
@@ -529,7 +537,7 @@ function DetailsModal({
 
         <div className="mt-5 rounded-xl border border-stone-200 bg-white p-4">
           <p className={`${manrope.className} text-[0.62rem] font-semibold tracking-[0.04em] uppercase text-slate-500`}>summary</p>
-          <p className="mt-2 text-sm leading-6 text-slate-700">{description}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-700">{normalizedDescription}</p>
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
