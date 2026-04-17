@@ -461,22 +461,22 @@ function ItGirlsWordmark({ compact = false, variant = ACTIVE_LOGO_VARIANT }: { c
   const isMinimal = variant === "B"
 
   return (
-    <div className={`inline-flex items-center rounded-2xl border border-[var(--accent)]/30 bg-[var(--surface-bg)] ${compact ? "px-2.5 py-1.5" : "px-3 py-2"} shadow-[0_6px_16px_rgba(50,28,12,0.08)]`}>
+    <div className={`inline-flex items-center rounded-2xl border border-[var(--accent)]/45 bg-gradient-to-br from-[var(--surface-bg)] via-white to-[var(--muted-bg)] ${compact ? "px-2.5 py-1.5" : "px-3 py-2"} shadow-[0_10px_22px_rgba(50,28,12,0.18),inset_0_1px_0_rgba(255,255,255,0.6)] transition duration-200`}>
       <div className={`inline-flex items-center ${isMinimal ? "gap-2" : "gap-2.5"}`}>
         {isMinimal ? (
-          <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--accent)]/35 bg-[var(--muted-bg)] shadow-sm">
+          <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--accent)]/45 bg-[var(--muted-bg)] shadow-[0_4px_10px_rgba(50,28,12,0.16)]">
             <span className="h-2.5 w-2.5 rounded-full bg-[var(--accent)]" />
-            <span className="absolute -right-0.5 top-1.5 h-2 w-2 rounded-full border border-[var(--accent)]/35 bg-[var(--surface-bg)]" />
+            <span className="absolute -right-0.5 top-1.5 h-2 w-2 rounded-full border border-[var(--accent)]/45 bg-[var(--surface-bg)]" />
           </span>
         ) : (
-          <span className="relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-[var(--accent)]/35 bg-[var(--muted-bg)] shadow-sm">
-            <span className="absolute left-0 top-0 h-2.5 w-3.5 rounded-br-md border-r border-b border-[var(--accent)]/35 bg-[var(--surface-bg)]" />
-            <span className="h-4 w-4 rounded-full border border-[var(--accent)]/55 bg-[var(--accent)]/12" />
+          <span className="relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-[var(--accent)]/50 bg-[var(--muted-bg)] shadow-[0_4px_10px_rgba(50,28,12,0.16)]">
+            <span className="absolute left-0 top-0 h-2.5 w-3.5 rounded-br-md border-r border-b border-[var(--accent)]/45 bg-[var(--surface-bg)]" />
+            <span className="h-4 w-4 rounded-full border border-[var(--accent)]/65 bg-[var(--accent)]/15" />
           </span>
         )}
 
         <span className="flex flex-col leading-none">
-          <span className={`${cormorant.className} ${isMinimal ? "text-[1.7rem]" : "text-[1.75rem]"} tracking-tight text-slate-900`}>it girls</span>
+          <span className={`${cormorant.className} ${isMinimal ? "text-[1.72rem]" : "text-[1.8rem]"} tracking-tight text-slate-900`}>it girls</span>
         </span>
       </div>
     </div>
@@ -682,7 +682,7 @@ export default function Home() {
     <div className={`${manrope.className} min-h-screen bg-[var(--page-bg)] text-slate-900 transition-colors duration-300`} style={pageThemeStyle}>
       <header className="sticky top-0 z-40 border-b border-stone-200 bg-[var(--header-bg)] backdrop-blur transition-colors duration-300">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
-          <button onClick={() => navigate("home")} className="transition hover:opacity-85">
+          <button onClick={() => navigate("home")} className="rounded-2xl transition hover:scale-[1.02] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/35">
             <ItGirlsWordmark variant={ACTIVE_LOGO_VARIANT} />
           </button>
 
@@ -715,10 +715,15 @@ export default function Home() {
                 Curated opportunities in a cleaner, easier format so you can move faster and apply with less effort.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <a href="#internships" className="rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-95">Browse internships</a>
+                <button
+                  onClick={() => navigate("internships")}
+                  className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold leading-none text-white transition hover:brightness-95"
+                >
+                  Browse internships
+                </button>
                 <button
                   onClick={() => navigate("mentorships")}
-                  className="rounded-full border border-[var(--accent)]/35 bg-[var(--surface-bg)] px-5 py-3 text-sm font-semibold text-[var(--accent)] transition hover:bg-[var(--muted-bg)]"
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--accent)]/35 bg-[var(--surface-bg)] px-5 py-3 text-sm font-semibold leading-none text-[var(--accent)] transition hover:bg-[var(--muted-bg)]"
                 >
                   Browse mentorships
                 </button>
@@ -764,7 +769,7 @@ export default function Home() {
 
           <section className="border-y border-stone-200 bg-[var(--surface-bg)] px-6 py-10 lg:px-8">
             <div className="mx-auto max-w-7xl">
-              <p className={`${manrope.className} text-[0.68rem] font-semibold tracking-[0.04em] uppercase text-slate-500`}>what they said</p>
+              <p className={`${manrope.className} text-sm font-bold tracking-[0.08em] uppercase text-slate-600 md:text-base`}>what they said</p>
               <div className="mt-6 grid gap-5 md:grid-cols-3">
                 {[
                   {
@@ -859,7 +864,7 @@ export default function Home() {
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {filteredMentors.map((mentorship) => (
                   <FolderCard
-                    key={mentorship.id}
+                    key={`${mentorship.id}-${mentorship.apply_link}`}
                     title={mentorship.programme_name}
                     company={`${mentorship.company} · ${mentorship.programme_type}`}
                     meta={[mentorship.duration, mentorship.mode, mentorship.deadline]}
