@@ -541,7 +541,7 @@ function DetailsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-2xl max-h-[88vh] overflow-y-auto rounded-2xl border border-stone-200 bg-[#fffdf8] p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+      <div className="w-full max-w-2xl max-h-[88vh] overflow-y-auto rounded-2xl border border-stone-200 bg-[linear-gradient(180deg,#fffdf8_0%,#fff9f0_100%)] p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4 border-b border-stone-200 pb-4">
           <div>
             <p className={`${manrope.className} text-[0.65rem] font-semibold tracking-[0.04em] uppercase text-[var(--accent)]`}>details</p>
@@ -555,14 +555,14 @@ function DetailsModal({
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           {rows.map((row) => (
-            <div key={row.label} className="rounded-xl border border-stone-200 bg-[var(--muted-bg)] p-4">
+            <div key={row.label} className="rounded-xl border border-stone-200 bg-[#fbf4e7] p-4">
               <p className={`${manrope.className} text-[0.62rem] font-semibold tracking-[0.04em] uppercase text-slate-500`}>{row.label}</p>
               <p className={`mt-1 text-sm ${row.highlight ? "font-semibold text-slate-950" : "text-slate-800"}`}>{row.value}</p>
             </div>
           ))}
         </div>
 
-        <div className="mt-5 rounded-xl border border-stone-200 bg-white p-4">
+        <div className="mt-5 rounded-xl border border-stone-200 bg-[#fffaf1] p-4">
           <p className={`${manrope.className} text-[0.62rem] font-semibold tracking-[0.04em] uppercase text-slate-500`}>summary</p>
           <p className="mt-2 text-sm leading-6 text-slate-700">{normalizedDescription}</p>
         </div>

@@ -30,15 +30,15 @@ export function FolderCard({ title, company, meta, description, cta, onClick }: 
         {meta.map((item, index) => (
           <div
             key={`${item}-${index}`}
-            className={`${manrope.className} flex h-8 items-center whitespace-nowrap rounded-t-xl border border-stone-300 border-b-0 bg-stone-50 px-3.5 text-[0.68rem] font-semibold leading-none tracking-[0.01em] text-slate-700 shadow-sm first:bg-[var(--accent)]/12 first:text-[var(--accent)]`}
+            className={`${manrope.className} flex h-8 items-center whitespace-nowrap rounded-t-xl border border-stone-300 border-b-0 bg-[#f7efe2] px-3.5 text-[0.68rem] font-semibold leading-none tracking-[0.01em] text-slate-700 shadow-sm first:bg-[var(--accent)]/14 first:text-[var(--accent)]`}
           >
             {item}
           </div>
         ))}
       </div>
 
-      <div className="relative overflow-hidden rounded-tr-2xl rounded-b-2xl border border-stone-300 bg-white p-5 shadow-[0_6px_16px_rgba(30,41,59,0.08)] transition group-hover:border-[var(--accent)] group-hover:shadow-[0_10px_24px_rgba(30,41,59,0.14)]">
-        <div className="absolute right-0 top-0 h-20 w-20 rounded-bl-full bg-stone-200/70" />
+      <div className="relative overflow-hidden rounded-tr-2xl rounded-b-2xl border border-stone-300 bg-[linear-gradient(180deg,#fffdf8_0%,#fffaf1_100%)] p-5 shadow-[0_6px_16px_rgba(76,51,24,0.08)] transition group-hover:border-[var(--accent)] group-hover:shadow-[0_10px_24px_rgba(76,51,24,0.14)]">
+        <div className="absolute right-0 top-0 h-20 w-20 rounded-bl-full bg-[var(--accent)]/8" />
         <div className="relative z-10 flex min-h-[176px] flex-col justify-between">
           <div>
             <div className="mb-1 flex items-start justify-between gap-3">
