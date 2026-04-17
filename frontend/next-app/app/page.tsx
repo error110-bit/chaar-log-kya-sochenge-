@@ -121,7 +121,10 @@ function normalizeDurationText(value?: string | null) {
 }
 
 function normalizeStipendText(value?: string | null): ParsedStipend | null {
-  const text = normalizeReadableText(cleanText(value, "")).toLowerCase().replace(/,/g, "")
+  const text = normalizeReadableText(cleanText(value, ""))
+    .toLowerCase()
+    .replace(/,/g, "") // Remove thousands separators
+    .replace(/â‚¹/g, "₹") // Fix corrupted rupee symbol
   if (!text) return null
 
   if (/unpaid|not disclosed|stipend not mentioned|no stipend/.test(text)) {
