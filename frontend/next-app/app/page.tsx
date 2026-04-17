@@ -100,6 +100,8 @@ function normalizeReadableText(value: string) {
     .replace(/\s+,/g, ",")
     .replace(/,([^\s])/g, ", $1")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([a-zA-Z])₹/g, "$1 ₹")
+    .replace(/₹([a-zA-Z])/g, "₹ $1")
     .replace(/([a-zA-Z])(\d)/g, "$1 $2")
     .replace(/(\d)([a-zA-Z])/g, "$1 $2")
     .replace(/₹(?=\d)/g, "₹ ")
