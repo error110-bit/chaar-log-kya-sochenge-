@@ -1,21 +1,29 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import Image from "next/image"
-import { Inter, Space_Mono } from "next/font/google"
+import { type CSSProperties, useEffect, useMemo, useState } from "react"
+import { Cormorant_Garamond, Manrope, Space_Mono } from "next/font/google"
 import { FolderCard } from "@/components/FolderCard"
 import { fetchInternships, fetchMentorships, type InternshipItem, type MentorshipItem } from "@/lib/opportunity-api"
 
-const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"] })
+const manrope = Manrope({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"] })
+const cormorant = Cormorant_Garamond({ subsets: ["latin"], weight: ["500", "600", "700"] })
 const spaceMono = Space_Mono({ subsets: ["latin"], weight: ["400", "700"] })
 
-type StipendFilter = "all" | "high" | "mid" | "low"
+type StipendFilter = "all" | "unpaid" | "0-5k" | "5-10k" | "10-15k" | "15-20k" | "20k+"
 type ModeFilter = "all" | "Remote" | "On-site" | "Hybrid"
 type CgpaFilter = "all" | "required" | "none"
+type LogoVariant = "A" | "B"
+type SitePage = "home" | "internships" | "mentorships"
+
+type ParsedStipend = {
+  min: number
+  max: number
+  isUnpaid: boolean
+}
 
 type LoadedInternship = InternshipItem & {
   id: string
-  stipendTier: StipendFilter | null
+  stipendRange: ParsedStipend | null
   hasCgpa: boolean
 }
 
@@ -35,19 +43,156 @@ const companies = [
   "Adobe",
 ]
 
+const ACTIVE_LOGO_VARIANT: LogoVariant = "A"
+
+const STIPEND_FILTERS: Array<{ id: Exclude<StipendFilter, "all">; label: string }> = [
+  { id: "unpaid", label: "Unpaid / not disclosed" },
+  { id: "0-5k", label: "0-5k" },
+  { id: "5-10k", label: "5-10k" },
+  { id: "10-15k", label: "10-15k" },
+  { id: "15-20k", label: "15-20k" },
+  { id: "20k+", label: "20k+" },
+]
+
+const STIPEND_BANDS: Array<{ id: Exclude<StipendFilter, "all" | "unpaid">; label: string; min: number; max: number }> = [
+  { id: "0-5k", label: "0-5k", min: 0, max: 5000 },
+  { id: "5-10k", label: "5-10k", min: 5000, max: 10000 },
+  { id: "10-15k", label: "10-15k", min: 10000, max: 15000 },
+  { id: "15-20k", label: "15-20k", min: 15000, max: 20000 },
+  { id: "20k+", label: "20k+", min: 20000, max: Number.POSITIVE_INFINITY },
+]
+
+const PAGE_THEME: Record<SitePage, { accent: string; pageBg: string; surfaceBg: string; mutedBg: string; headerBg: string }> = {
+  home: {
+    accent: "#c8652d",
+    pageBg: "#fffaf3",
+    surfaceBg: "#fffdf8",
+    mutedBg: "#f8f3ea",
+    headerBg: "rgba(255, 250, 243, 0.95)",
+  },
+  internships: {
+    accent: "#b85d2f",
+    pageBg: "#fff9f1",
+    surfaceBg: "#fffcf6",
+    mutedBg: "#f7efe3",
+    headerBg: "rgba(255, 249, 241, 0.95)",
+  },
+  mentorships: {
+    accent: "#2f6f9f",
+    pageBg: "#f4f8ff",
+    surfaceBg: "#fbfdff",
+    mutedBg: "#edf4ff",
+    headerBg: "rgba(244, 248, 255, 0.95)",
+  },
+}
+
 function cleanText(value?: string | null, fallback = "N/A") {
   const trimmed = value?.trim()
   return trimmed ? trimmed : fallback
 }
 
-function slugify(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+function normalizeCompanyText(value?: string | null) {
+  const cleaned = cleanText(value, "").replace(/\s*\d[\d,.]*\s*reviews.*$/i, "").replace(/\s*reviews.*$/i, "")
+  return cleaned.replace(/\s+/g, " ").trim()
 }
 
-function initials(value: string) {
-  const parts = value.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return "OP"
-  return parts.map((part) => part[0]).join("").slice(0, 3).toUpperCase()
+function normalizeDurationText(value?: string | null) {
+  const cleaned = cleanText(value, "").replace(/\s*duration\s*/i, " ").trim()
+  const compact = cleaned.replace(/\s+/g, " ")
+  return compact.replace(/(\d+)\s*to\s*(\d+)\s*years?/i, "$1-$2 years").replace(/(\d+)\s*to\s*(\d+)\s*months?/i, "$1-$2 months")
+}
+
+function normalizeStipendText(value?: string | null): ParsedStipend | null {
+  const text = cleanText(value, "").toLowerCase().replace(/,/g, "")
+  if (!text) return null
+
+  if (/unpaid|not disclosed|stipend not mentioned|no stipend/.test(text)) {
+    return { min: 0, max: 0, isUnpaid: true }
+  }
+
+  const toAmount = (num: string, unit?: string) => {
+    const amount = Number.parseFloat(num)
+    if (!Number.isFinite(amount)) return null
+    const normalizedUnit = (unit ?? "").toLowerCase()
+    const multiplier = normalizedUnit === "k" ? 1000 : normalizedUnit === "m" ? 1000000 : normalizedUnit === "l" || normalizedUnit === "lac" || normalizedUnit === "lakh" || normalizedUnit === "lakhs" ? 100000 : 1
+    return amount * multiplier
+  }
+
+  const amounts: number[] = []
+
+  // Prefer explicit currency/range patterns.
+  for (const match of text.matchAll(/(?:₹|inr|rs\.?\s*)\s*(\d+(?:\.\d+)?)(?:\s*(k|m|l|lac|lakh|lakhs))?(?:\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?)(?:\s*(k|m|l|lac|lakh|lakhs))?)?/gi)) {
+    const first = toAmount(match[1], match[2])
+    const second = match[3] ? toAmount(match[3], match[4]) : null
+    if (first !== null) amounts.push(first)
+    if (second !== null) amounts.push(second)
+  }
+
+  // Handle strings like "20000/month" without currency symbol.
+  if (amounts.length === 0) {
+    for (const match of text.matchAll(/(\d+(?:\.\d+)?)(?:\s*(k|m|l|lac|lakh|lakhs))?\s*(?:\/|per\s*)(?:month|mo)\b/gi)) {
+      const amount = toAmount(match[1], match[2])
+      if (amount !== null) amounts.push(amount)
+    }
+  }
+
+  // Final fallback for compact forms like "10k-15k".
+  if (amounts.length === 0) {
+    for (const match of text.matchAll(/\b(\d+(?:\.\d+)?)(?:\s*(k|m|l|lac|lakh|lakhs))\b/gi)) {
+      const amount = toAmount(match[1], match[2])
+      if (amount !== null) amounts.push(amount)
+    }
+  }
+
+  if (amounts.length === 0) return null
+
+  return {
+    min: Math.min(...amounts),
+    max: Math.max(...amounts),
+    isUnpaid: amounts.every((amount) => amount === 0),
+  }
+}
+
+function normalizeStipendDisplay(value?: string | null) {
+  const parsed = normalizeStipendText(value)
+  if (!parsed) return cleanText(value)
+  if (parsed.isUnpaid) return "Unpaid"
+
+  const min = Math.round(parsed.min)
+  const max = Math.round(parsed.max)
+  if (min === max) {
+    return `₹${min.toLocaleString("en-IN")}/month`
+  }
+
+  return `₹${min.toLocaleString("en-IN")} - ₹${max.toLocaleString("en-IN")}/month`
+}
+
+function stipendBandForRange(range: ParsedStipend | null): Exclude<StipendFilter, "all" | "unpaid"> | null {
+  if (!range || range.isUnpaid) return null
+  const midpoint = (range.min + range.max) / 2
+  const band = STIPEND_BANDS.find((item) => midpoint >= item.min && midpoint < item.max)
+  return band?.id ?? "20k+"
+}
+
+function stipendMatchesFilter(range: ParsedStipend | null, filter: StipendFilter) {
+  if (filter === "all") return true
+  if (filter === "unpaid") return !range || range.isUnpaid
+  if (!range || range.isUnpaid) return false
+
+  return stipendBandForRange(range) === filter
+}
+
+function formatStipendBadge(range: ParsedStipend | null, raw: string) {
+  if (!range) return cleanText(raw)
+  if (range.isUnpaid) return "Unpaid"
+
+  const midpoint = (range.min + range.max) / 2
+  const band = STIPEND_BANDS.find((item) => midpoint >= item.min && midpoint < item.max)
+  return band?.label ?? `${Math.round(range.min / 1000)}k+`
+}
+
+function slugify(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
 }
 
 function normalizeMode(value?: string | null): ModeFilter | null {
@@ -86,35 +231,8 @@ function matchesBranch(value: string, selectedBranch: string) {
   return value.toLowerCase().includes(selectedBranch.toLowerCase())
 }
 
-function extractStipendAmount(value?: string | null) {
-  const stipend = cleanText(value, "").toLowerCase()
-  if (!stipend || stipend.includes("not disclosed") || stipend.includes("n/a") || stipend.includes("na")) return null
-
-  const match = stipend.match(/₹\s*([\d,]+(?:\.\d+)?)\s*(k|m|l|lac|lakh|lakhs)?/i) ?? stipend.match(/([\d,]+(?:\.\d+)?)\s*(k|m|l|lac|lakh|lakhs)?/i)
-  if (!match) return null
-
-  const amount = Number.parseFloat(match[1].replace(/,/g, ""))
-  if (!Number.isFinite(amount)) return null
-
-  const unit = (match[2] ?? "").toLowerCase()
-  const multiplier = unit === "k" ? 1000 : unit === "m" ? 1000000 : unit === "l" || unit === "lac" || unit === "lakh" || unit === "lakhs" ? 100000 : 1
-  return amount * multiplier
-}
-
-function classifyStipend(value?: string | null): StipendFilter | null {
-  const amount = extractStipendAmount(value)
-  if (amount === null) return null
-  if (amount >= 50000) return "high"
-  if (amount >= 15000) return "mid"
-  return "low"
-}
-
 function stipendBadge(value?: string | null) {
-  const amount = extractStipendAmount(value)
-  if (amount === null) return cleanText(value)
-  if (amount >= 50000) return "₹₹₹"
-  if (amount >= 15000) return "₹₹"
-  return "₹"
+  return formatStipendBadge(normalizeStipendText(value), cleanText(value))
 }
 
 function fetchAllPages<T>(fetchPage: (page: number) => Promise<{ meta: { total: number; page_size: number }; data: T[] }>) {
@@ -137,7 +255,7 @@ function fetchAllPages<T>(fetchPage: (page: number) => Promise<{ meta: { total: 
 function dedupeInternships(items: InternshipItem[]) {
   const seen = new Set<string>()
   return items.filter((item) => {
-    const key = [cleanText(item.source, ""), cleanText(item.company, ""), cleanText(item.title, ""), cleanText(item.apply_link, "")].join("::")
+    const key = [cleanText(item.source, ""), normalizeCompanyText(item.company), cleanText(item.title, "")].join("::")
     if (seen.has(key)) return false
     seen.add(key)
     return true
@@ -158,18 +276,20 @@ function buildInternshipCard(item: InternshipItem): LoadedInternship {
   const stipend = cleanText(item.stipend)
   const branch = cleanText(item.branch_required)
   const cgpa = cleanText(item.cgpa_required)
+  const company = normalizeCompanyText(item.company)
+  const title = cleanText(item.title)
 
   return {
     ...item,
-    id: slugify(`${cleanText(item.source, "unknown")}-${item.company}-${item.title}-${cleanText(item.apply_link, "no-link")}`),
-    stipendTier: classifyStipend(stipend),
+    id: slugify(`${cleanText(item.source, "unknown")}-${company}-${title}-${cleanText(item.apply_link, "no-link")}-${cleanText(item.location, "no-location")}-${cleanText(item.deadline, "no-deadline")}`),
+    stipendRange: normalizeStipendText(stipend),
     hasCgpa: hasCgpaRequirement(cgpa),
     source: cleanText(item.source),
-    title: cleanText(item.title),
-    company: cleanText(item.company),
+    title,
+    company,
     location: cleanText(item.location),
-    stipend,
-    duration: cleanText(item.duration),
+    stipend: normalizeStipendDisplay(stipend),
+    duration: normalizeDurationText(item.duration),
     mode: cleanText(item.mode),
     internship_type: cleanText(item.internship_type),
     branch_required: branch,
@@ -193,7 +313,7 @@ function buildMentorshipCard(item: MentorshipItem): LoadedMentorship {
     programme_name: cleanText(item.programme_name),
     programme_type: cleanText(item.programme_type),
     description: cleanText(item.description),
-    duration: cleanText(item.duration),
+    duration: normalizeDurationText(item.duration),
     mode: cleanText(item.mode),
     eligibility: cleanText(item.eligibility),
     branch_required: cleanText(item.branch_required),
@@ -206,52 +326,98 @@ function buildMentorshipCard(item: MentorshipItem): LoadedMentorship {
   }
 }
 
-function FilterBar({ stipend, setStipend, mode, setMode, cgpa, setCgpa, branch, setBranch, branches, hidePay }: { stipend: StipendFilter; setStipend: (v: StipendFilter) => void; mode: ModeFilter; setMode: (v: ModeFilter) => void; cgpa: CgpaFilter; setCgpa: (v: CgpaFilter) => void; branch: string; setBranch: (v: string) => void; branches: string[]; hidePay?: boolean }) {
-  const chipBase = `${spaceMono.className} rounded-full border px-3 py-1.5 text-[0.62rem] tracking-[0.08em] transition`
-  const active = "border-[#ff5a1f] bg-[#ff5a1f] text-white"
-  const inactive = "border-slate-200 bg-white text-slate-600 hover:border-[#ff5a1f] hover:text-[#ff5a1f]"
+function FilterBar({ stipend, setStipend, mode, setMode, cgpa, setCgpa, branch, setBranch, branches, hidePay, onReset, showReset }: { stipend: StipendFilter; setStipend: (v: StipendFilter) => void; mode: ModeFilter; setMode: (v: ModeFilter) => void; cgpa: CgpaFilter; setCgpa: (v: CgpaFilter) => void; branch: string; setBranch: (v: string) => void; branches: string[]; hidePay?: boolean; onReset: () => void; showReset: boolean }) {
+  const selectClass = `${manrope.className} h-11 w-[180px] appearance-none rounded-xl border border-stone-200 bg-white px-4 pr-10 text-[0.82rem] font-medium text-slate-700 outline-none shadow-sm transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15`
+  const labelClass = `${manrope.className} mb-1.5 block text-[0.64rem] font-semibold tracking-[0.07em] uppercase text-slate-500`
 
   return (
-    <div className="sticky top-[73px] z-30 border-b border-slate-200 bg-white/95 px-6 py-3 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-3 lg:px-2">
+    <div className="sticky top-[73px] z-30 border-b border-stone-200 bg-[var(--page-bg)]/95 px-6 py-3 backdrop-blur">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-end gap-3 rounded-2xl border border-stone-200 bg-[var(--surface-bg)] p-3 shadow-[0_8px_20px_rgba(35,35,35,0.04)] lg:px-4">
         {!hidePay && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className={`${spaceMono.className} mr-1 text-[0.56rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>stipend</span>
-            {(["all", "high", "mid", "low"] as StipendFilter[]).map((value) => (
-              <button key={value} className={`${chipBase} ${stipend === value ? active : inactive}`} onClick={() => setStipend(value)}>
-                {value === "all" ? "all" : value === "high" ? "₹₹₹ high" : value === "mid" ? "₹₹ mid" : "₹ low"}
-              </button>
-            ))}
+          <div>
+            <label className={labelClass} htmlFor="filter-stipend">stipend</label>
+            <div className="relative">
+              <select
+                id="filter-stipend"
+                className={selectClass}
+                value={stipend}
+                onChange={(event) => setStipend(event.target.value as StipendFilter)}
+              >
+                <option value="all">All</option>
+                {STIPEND_FILTERS.map((item) => (
+                  <option key={item.id} value={item.id}>{item.label}</option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">▾</span>
+            </div>
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className={`${spaceMono.className} mr-1 text-[0.56rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>mode</span>
-          {(["all", "Remote", "On-site", "Hybrid"] as ModeFilter[]).map((value) => (
-            <button key={value} className={`${chipBase} ${mode === value ? active : inactive}`} onClick={() => setMode(value)}>
-              {value === "all" ? "all" : value.toLowerCase()}
-            </button>
-          ))}
+        <div>
+          <label className={labelClass} htmlFor="filter-mode">mode</label>
+          <div className="relative">
+            <select
+              id="filter-mode"
+              className={selectClass}
+              value={mode}
+              onChange={(event) => setMode(event.target.value as ModeFilter)}
+            >
+              <option value="all">All</option>
+              <option value="Remote">Remote</option>
+              <option value="On-site">On-site</option>
+              <option value="Hybrid">Hybrid</option>
+            </select>
+            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">▾</span>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className={`${spaceMono.className} mr-1 text-[0.56rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>cgpa</span>
-          {(["all", "required", "none"] as CgpaFilter[]).map((value) => (
-            <button key={value} className={`${chipBase} ${cgpa === value ? active : inactive}`} onClick={() => setCgpa(value)}>
-              {value === "all" ? "all" : value === "required" ? "required" : "no cutoff"}
-            </button>
-          ))}
+        <div>
+          <label className={labelClass} htmlFor="filter-cgpa">cgpa</label>
+          <div className="relative">
+            <select
+              id="filter-cgpa"
+              className={selectClass}
+              value={cgpa}
+              onChange={(event) => setCgpa(event.target.value as CgpaFilter)}
+            >
+              <option value="all">All</option>
+              <option value="required">Required</option>
+              <option value="none">No cutoff</option>
+            </select>
+            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">▾</span>
+          </div>
         </div>
 
         {branches.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className={`${spaceMono.className} mr-1 text-[0.56rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>branch</span>
-            <button className={`${chipBase} ${branch === "all" ? active : inactive}`} onClick={() => setBranch("all")}>all</button>
-            {branches.map((item) => (
-              <button key={item} className={`${chipBase} ${branch === item ? active : inactive}`} onClick={() => setBranch(item)}>
-                {item}
-              </button>
-            ))}
+          <div>
+            <label className={labelClass} htmlFor="filter-branch">branch</label>
+            <div className="relative">
+              <select
+                id="filter-branch"
+                className={selectClass}
+                value={branch}
+                onChange={(event) => setBranch(event.target.value)}
+              >
+                <option value="all">All</option>
+                {branches.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">▾</span>
+            </div>
+          </div>
+        )}
+
+        {showReset && (
+          <div className="ml-auto">
+            <label className={`${labelClass} invisible`} htmlFor="filter-reset">reset</label>
+            <button
+              id="filter-reset"
+              onClick={onReset}
+              className={`${manrope.className} h-11 w-[180px] rounded-xl border border-stone-300 bg-white px-4 text-[0.82rem] font-semibold text-slate-700 shadow-sm transition hover:border-[var(--accent)] hover:text-[var(--accent)]`}
+            >
+              Reset filters
+            </button>
           </div>
         )}
       </div>
@@ -261,21 +427,54 @@ function FilterBar({ stipend, setStipend, mode, setMode, cgpa, setCgpa, branch, 
 
 function EmptyState({ clearFn }: { clearFn: () => void }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 py-16 text-center">
-      <p className={`${spaceMono.className} text-[0.75rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>no results match your filters</p>
-      <button onClick={clearFn} className="mt-4 text-sm font-medium text-[#ff5a1f] underline underline-offset-4">
+    <div className="rounded-2xl border border-dashed border-stone-300 bg-[var(--muted-bg)] py-16 text-center">
+      <p className={`${manrope.className} text-[0.75rem] font-semibold tracking-[0.02em] text-slate-500`}>no results match your filters</p>
+      <button onClick={clearFn} className="mt-4 text-sm font-medium text-[var(--accent)] underline underline-offset-4">
         clear filters
       </button>
     </div>
   )
 }
 
-function SectionHeading({ kicker, title, text }: { kicker: string; title: string; text: string }) {
+function SectionHeading({ kicker, title, text, count }: { kicker: string; title: string; text: string; count?: string }) {
   return (
     <div className="max-w-3xl">
-      <p className={`${spaceMono.className} text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-[#ff5a1f]`}>{kicker}</p>
-      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">{title}</h2>
+      <p className={`${manrope.className} text-sm font-bold tracking-[0.08em] uppercase text-[var(--accent)] md:text-base`}>{kicker}</p>
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <h2 className={`${cormorant.className} text-4xl leading-[1.06] tracking-tight text-slate-900 md:text-5xl`}>{title}</h2>
+        {count && (
+          <span className={`${manrope.className} mb-1 rounded-full border border-[var(--accent)]/20 bg-[var(--surface-bg)] px-3 py-1 text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-[var(--accent)]`}>
+            {count}
+          </span>
+        )}
+      </div>
       <p className="mt-3 text-sm leading-7 text-slate-600 md:text-base">{text}</p>
+    </div>
+  )
+}
+
+function ItGirlsWordmark({ compact = false, variant = ACTIVE_LOGO_VARIANT }: { compact?: boolean; variant?: LogoVariant }) {
+  const isMinimal = variant === "B"
+
+  return (
+    <div className={`inline-flex items-center rounded-2xl border border-[var(--accent)]/30 bg-[var(--surface-bg)] ${compact ? "px-2.5 py-1.5" : "px-3 py-2"} shadow-[0_6px_16px_rgba(50,28,12,0.08)]`}>
+      <div className={`inline-flex items-center ${isMinimal ? "gap-2" : "gap-2.5"}`}>
+        {isMinimal ? (
+          <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--accent)]/35 bg-[var(--muted-bg)] shadow-sm">
+            <span className="h-2.5 w-2.5 rounded-full bg-[var(--accent)]" />
+            <span className="absolute -right-0.5 top-1.5 h-2 w-2 rounded-full border border-[var(--accent)]/35 bg-[var(--surface-bg)]" />
+          </span>
+        ) : (
+          <span className="relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-[var(--accent)]/35 bg-[var(--muted-bg)] shadow-sm">
+            <span className="absolute left-0 top-0 h-2.5 w-3.5 rounded-br-md border-r border-b border-[var(--accent)]/35 bg-[var(--surface-bg)]" />
+            <span className="h-4 w-4 rounded-full border border-[var(--accent)]/55 bg-[var(--accent)]/12" />
+          </span>
+        )}
+
+        <span className="flex flex-col leading-none">
+          <span className={`${cormorant.className} ${isMinimal ? "text-[1.7rem]" : "text-[1.75rem]"} tracking-tight text-slate-900`}>it girls</span>
+        </span>
+      </div>
     </div>
   )
 }
@@ -303,34 +502,34 @@ function DetailsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+      <div className="w-full max-w-2xl rounded-2xl border border-stone-200 bg-[#fffdf8] p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4 border-b border-stone-200 pb-4">
           <div>
-            <p className={`${spaceMono.className} text-[0.65rem] font-semibold tracking-[0.14em] uppercase text-[#ff5a1f]`}>details</p>
-            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{title}</h3>
+            <p className={`${manrope.className} text-[0.65rem] font-semibold tracking-[0.04em] uppercase text-[var(--accent)]`}>details</p>
+            <h3 className={`${cormorant.className} mt-2 text-3xl leading-[1.06] tracking-tight text-slate-900`}>{title}</h3>
             <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
           </div>
-          <button onClick={onClose} className="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-600 transition hover:border-[#ff5a1f] hover:text-[#ff5a1f]">
+          <button onClick={onClose} className="rounded-full border border-stone-200 px-3 py-1 text-sm text-slate-600 transition hover:border-[var(--accent)] hover:text-[var(--accent)]">
             Close
           </button>
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           {rows.map((row) => (
-            <div key={row.label} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className={`${spaceMono.className} text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>{row.label}</p>
+            <div key={row.label} className="rounded-xl border border-stone-200 bg-[var(--muted-bg)] p-4">
+              <p className={`${manrope.className} text-[0.62rem] font-semibold tracking-[0.04em] uppercase text-slate-500`}>{row.label}</p>
               <p className={`mt-1 text-sm ${row.highlight ? "font-semibold text-slate-950" : "text-slate-800"}`}>{row.value}</p>
             </div>
           ))}
         </div>
 
-        <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
-          <p className={`${spaceMono.className} text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-slate-500`}>summary</p>
+        <div className="mt-5 rounded-xl border border-stone-200 bg-white p-4">
+          <p className={`${manrope.className} text-[0.62rem] font-semibold tracking-[0.04em] uppercase text-slate-500`}>summary</p>
           <p className="mt-2 text-sm leading-6 text-slate-700">{description}</p>
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <a href={ctaLink} target="_blank" rel="noreferrer" className="rounded-full bg-[#ff5a1f] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#e94f16]">
+          <a href={ctaLink} target="_blank" rel="noreferrer" className="rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-medium text-white transition hover:brightness-95">
             {ctaLabel}
           </a>
           <span className="text-sm text-slate-500">Use this as a starting point for your application.</span>
@@ -341,7 +540,7 @@ function DetailsModal({
 }
 
 export default function Home() {
-  const [page, setPage] = useState<"home" | "internships" | "mentorships">("home")
+  const [page, setPage] = useState<SitePage>("home")
   const [selectedInternship, setSelectedInternship] = useState<LoadedInternship | null>(null)
   const [selectedMentorship, setSelectedMentorship] = useState<LoadedMentorship | null>(null)
 
@@ -423,7 +622,7 @@ export default function Home() {
   }, [mentorshipItems])
 
   const filteredInterns = useMemo(() => internshipItems.filter((item) => {
-    if (iStipend !== "all" && item.stipendTier !== iStipend) return false
+    if (!stipendMatchesFilter(item.stipendRange, iStipend)) return false
     const normalizedMode = normalizeMode(item.mode)
     if (iMode !== "all" && normalizedMode !== iMode) return false
     if (iCgpa === "required" && !item.hasCgpa) return false
@@ -463,20 +662,32 @@ export default function Home() {
     setMBranch("all")
   }
 
+  const hasInternFilters = iStipend !== "all" || iMode !== "all" || iCgpa !== "all" || iBranch !== "all"
+  const hasMentorFilters = mMode !== "all" || mCgpa !== "all" || mBranch !== "all"
+  const theme = PAGE_THEME[page]
+
+  const pageThemeStyle: CSSProperties = {
+    ["--accent" as string]: theme.accent,
+    ["--page-bg" as string]: theme.pageBg,
+    ["--surface-bg" as string]: theme.surfaceBg,
+    ["--muted-bg" as string]: theme.mutedBg,
+    ["--header-bg" as string]: theme.headerBg,
+  }
+
   return (
-    <div className={`${inter.className} min-h-screen bg-white text-slate-950`}>
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+    <div className={`${manrope.className} min-h-screen bg-[var(--page-bg)] text-slate-900 transition-colors duration-300`} style={pageThemeStyle}>
+      <header className="sticky top-0 z-40 border-b border-stone-200 bg-[var(--header-bg)] backdrop-blur transition-colors duration-300">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
-          <button onClick={() => navigate("home")} className="text-lg font-semibold tracking-tight text-slate-950">
-            it girls
+          <button onClick={() => navigate("home")} className="transition hover:opacity-85">
+            <ItGirlsWordmark variant={ACTIVE_LOGO_VARIANT} />
           </button>
 
-          <nav className="flex items-center gap-1">
+          <nav className="inline-flex items-center gap-1 rounded-2xl border border-stone-200 bg-[var(--surface-bg)] p-1 shadow-sm transition-colors duration-300">
             {(["internships", "mentorships"] as const).map((item) => (
               <button
                 key={item}
                 onClick={() => navigate(item)}
-                className={`${spaceMono.className} rounded-t-xl border border-slate-200 border-b-0 px-5 py-2 text-[0.68rem] font-semibold tracking-[0.12em] uppercase transition ${page === item ? "bg-[#ff5a1f] text-white" : "bg-white text-slate-600 hover:text-[#ff5a1f]"}`}
+                className={`rounded-xl px-5 py-2.5 text-[0.74rem] font-semibold tracking-[0.08em] uppercase transition ${page === item ? "bg-[var(--accent)] text-white shadow-sm" : "bg-transparent text-slate-600 hover:bg-[var(--muted-bg)] hover:text-[var(--accent)]"}`}
               >
                 {item}
               </button>
@@ -489,28 +700,34 @@ export default function Home() {
         <main>
           <section className="mx-auto max-w-7xl px-6 pb-14 pt-16 lg:px-8 lg:pt-20">
             <div className="max-w-4xl">
-              <h1 className="text-4xl font-semibold tracking-tight text-slate-950 md:text-6xl lg:text-7xl">
-                <span className="block">build the career</span>
-                <span className="block text-[#ff5a1f]">they said you couldn&apos;t.</span>
+              <h1 className={`${cormorant.className} text-5xl leading-[0.95] tracking-tight text-slate-900 md:text-7xl lg:text-8xl`}>
+                <span className="block">Build the career</span>
+                <span className="block text-[var(--accent)]">They said you couldn&apos;t.</span>
               </h1>
-              <p className={`${spaceMono.className} mt-5 text-[0.72rem] tracking-[0.15em] uppercase text-slate-500`}>
+              <p className={`${manrope.className} mt-6 text-[0.78rem] font-semibold tracking-[0.08em] uppercase text-slate-500 md:text-[0.82rem]`}>
                 curated internships &amp; mentorships for women in tech &amp; beyond
               </p>
               <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 md:text-lg">
-                A cleaner, faster version of the old folder system, rebuilt with the same intent and the full backend-fed dataset.
+                Curated opportunities in a cleaner, easier format so you can move faster and apply with less effort.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <a href="#internships" className="rounded-full bg-[#ff5a1f] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#e94f16]">Browse internships</a>
+                <a href="#internships" className="rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-95">Browse internships</a>
+                <button
+                  onClick={() => navigate("mentorships")}
+                  className="rounded-full border border-[var(--accent)]/35 bg-[var(--surface-bg)] px-5 py-3 text-sm font-semibold text-[var(--accent)] transition hover:bg-[var(--muted-bg)]"
+                >
+                  Browse mentorships
+                </button>
               </div>
             </div>
           </section>
 
-          <section className="border-y border-slate-200 bg-slate-50/70 px-6 py-10 lg:px-8">
+          <section className="border-y border-stone-200 bg-[var(--muted-bg)] px-6 py-10 lg:px-8">
             <div className="mx-auto max-w-7xl">
-              <p className={`${spaceMono.className} text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-slate-500`}>featured companies</p>
+              <p className={`${manrope.className} text-sm font-bold tracking-[0.08em] uppercase text-slate-600 md:text-base`}>featured companies</p>
               <div className="mt-5 flex flex-wrap gap-2">
                 {companies.map((company) => (
-                  <span key={company} className="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700 shadow-sm">
+                  <span key={company} className="rounded-full border border-stone-200 bg-[var(--surface-bg)] px-3.5 py-2 text-sm text-slate-700 shadow-sm">
                     {company}
                   </span>
                 ))}
@@ -519,9 +736,9 @@ export default function Home() {
           </section>
 
           <section id="internships" className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
-            <SectionHeading kicker="featured" title="Some of the current internships" text={`Loaded from the backend: ${internshipItems.length || 0} internships and ${mentorshipItems.length || 0} mentorships.`} />
+            <SectionHeading kicker="featured" title="Some of the current internships" text={`A fresh set of opportunities is available right now for you to browse.`} />
             {internshipLoading ? (
-              <div className="mt-10 rounded-2xl border border-slate-200 bg-slate-50 py-16 text-center text-sm text-slate-500">Loading internships...</div>
+              <div className="mt-10 rounded-2xl border border-stone-200 bg-[var(--muted-bg)] py-16 text-center text-sm text-slate-500">Loading internships...</div>
             ) : internshipError ? (
               <div className="mt-10 rounded-2xl border border-red-200 bg-red-50 py-16 text-center text-sm text-red-700">{internshipError}</div>
             ) : (
@@ -541,9 +758,9 @@ export default function Home() {
             )}
           </section>
 
-          <section className="border-y border-slate-200 bg-white px-6 py-10 lg:px-8">
+          <section className="border-y border-stone-200 bg-[var(--surface-bg)] px-6 py-10 lg:px-8">
             <div className="mx-auto max-w-7xl">
-              <p className={`${spaceMono.className} text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-slate-500`}>what they said</p>
+              <p className={`${manrope.className} text-[0.68rem] font-semibold tracking-[0.04em] uppercase text-slate-500`}>what they said</p>
               <div className="mt-6 grid gap-5 md:grid-cols-3">
                 {[
                   {
@@ -559,19 +776,19 @@ export default function Home() {
                     author: "Sneha T. — NIT Trichy, ECE '25",
                   },
                 ].map((item) => (
-                  <div key={item.author} className="rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
+                  <div key={item.author} className="rounded-2xl border border-stone-200 bg-[var(--muted-bg)] p-6 shadow-sm">
                     <p className="text-sm leading-7 text-slate-700">&quot;{item.quote}&quot;</p>
-                    <p className={`${spaceMono.className} mt-4 text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-[#ff5a1f]`}>{item.author}</p>
+                    <p className={`${manrope.className} mt-4 text-[0.62rem] font-semibold tracking-[0.04em] uppercase text-[var(--accent)]`}>{item.author}</p>
                   </div>
                 ))}
               </div>
             </div>
           </section>
 
-          <footer className="border-t border-slate-200 px-6 py-8 lg:px-8">
+          <footer className="border-t border-stone-200 px-6 py-8 lg:px-8">
             <div className="mx-auto flex max-w-7xl flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <p className="text-sm text-slate-500">it girls</p>
-              <p className={`${spaceMono.className} text-[0.64rem] font-semibold tracking-[0.14em] uppercase text-slate-400`}>internships · mentorships · yc colors</p>
+              <ItGirlsWordmark compact variant={ACTIVE_LOGO_VARIANT} />
+              <p className={`${manrope.className} text-[0.64rem] font-semibold tracking-[0.04em] uppercase text-slate-400`}>internships · mentorships</p>
             </div>
           </footer>
         </main>
@@ -581,17 +798,17 @@ export default function Home() {
         <main>
           <section className="mx-auto max-w-7xl px-6 pt-16 lg:px-8 lg:pt-20">
             <div className="max-w-4xl">
-              <p className={`${spaceMono.className} text-[0.72rem] font-semibold tracking-[0.18em] uppercase text-[#ff5a1f]`}>internships</p>
-              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">All open roles, cleaned up and easy to scan.</h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">This tab now loads the full internship dataset from the backend, so you get the complete list instead of six samples.</p>
+              <p className={`${manrope.className} text-sm font-semibold tracking-[0.08em] uppercase text-[var(--accent)] md:text-[0.95rem]`}>internships</p>
+              <h1 className={`${cormorant.className} mt-4 text-5xl leading-[1.04] tracking-tight text-slate-900 md:text-6xl`}>All open roles, cleaned up and easy to scan.</h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">Browse the latest internship opportunities with filters that make shortlisting simple.</p>
             </div>
           </section>
 
-          <FilterBar stipend={iStipend} setStipend={setIStipend} mode={iMode} setMode={setIMode} cgpa={iCgpa} setCgpa={setICgpa} branch={iBranch} setBranch={setIBranch} branches={internBranches} />
+          <FilterBar stipend={iStipend} setStipend={setIStipend} mode={iMode} setMode={setIMode} cgpa={iCgpa} setCgpa={setICgpa} branch={iBranch} setBranch={setIBranch} branches={internBranches} onReset={resetInternFilters} showReset={hasInternFilters} />
 
           <section className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
             {internshipLoading ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 py-16 text-center text-sm text-slate-500">Loading internships...</div>
+              <div className="rounded-2xl border border-stone-200 bg-[var(--muted-bg)] py-16 text-center text-sm text-slate-500">Loading internships...</div>
             ) : internshipError ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 py-16 text-center text-sm text-red-700">{internshipError}</div>
             ) : filteredInterns.length === 0 ? (
@@ -619,17 +836,17 @@ export default function Home() {
         <main>
           <section className="mx-auto max-w-7xl px-6 pt-16 lg:px-8 lg:pt-20">
             <div className="max-w-4xl">
-              <p className={`${spaceMono.className} text-[0.72rem] font-semibold tracking-[0.18em] uppercase text-[#ff5a1f]`}>mentorships</p>
-              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">Guidance with structure.</h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">The mentorship dataset is loaded from the backend as well, so the full list is available and filterable.</p>
+              <p className={`${manrope.className} text-sm font-semibold tracking-[0.08em] uppercase text-[var(--accent)] md:text-[0.95rem]`}>mentorships</p>
+              <h1 className={`${cormorant.className} mt-4 text-5xl leading-[1.04] tracking-tight text-slate-900 md:text-6xl`}>Guidance with structure.</h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">Browse mentorship options designed to help you find the right fit faster.</p>
             </div>
           </section>
 
-          <FilterBar stipend="all" setStipend={() => {}} mode={mMode} setMode={setMMode} cgpa={mCgpa} setCgpa={setMCgpa} branch={mBranch} setBranch={setMBranch} branches={mentorBranches} hidePay />
+          <FilterBar stipend="all" setStipend={() => {}} mode={mMode} setMode={setMMode} cgpa={mCgpa} setCgpa={setMCgpa} branch={mBranch} setBranch={setMBranch} branches={mentorBranches} hidePay onReset={resetMentorFilters} showReset={hasMentorFilters} />
 
           <section className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
             {mentorshipLoading ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 py-16 text-center text-sm text-slate-500">Loading mentorships...</div>
+              <div className="rounded-2xl border border-stone-200 bg-[var(--muted-bg)] py-16 text-center text-sm text-slate-500">Loading mentorships...</div>
             ) : mentorshipError ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 py-16 text-center text-sm text-red-700">{mentorshipError}</div>
             ) : filteredMentors.length === 0 ? (

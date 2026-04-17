@@ -5,8 +5,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-INTERNSHIP_SCRAPER = ROOT / "scrapers" / "internship_scraper.py"
-MENTORSHIP_SCRAPER = ROOT / "scrapers" / "mentorship_scraper.py"
+INTERNSHIP_SCRAPER = ROOT / "internship_scraper.py"
+MENTORSHIP_SCRAPER = ROOT / "mentorship_scraper.py"
 
 
 def run_script(script_path: Path, extra_args: list[str]) -> int:

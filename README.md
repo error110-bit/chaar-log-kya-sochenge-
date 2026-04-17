@@ -37,11 +37,34 @@ python scraper.py mentorship --once
 
 python scraper.py all --once
 
-3. Start backend:
+Automation (No Manual Scrape + Reload)
+
+1. Run both internship and mentorship schedulers together in one command:
+
+   python scraper.py all
+
+   This now starts both long-running scrapers concurrently.
+
+2. Backend auto-refreshes data from JSON files when they change:
 
    python backend.py
 
-4. Verify API:
+   By default, backend watches file changes and reloads automatically.
+   You can disable this by setting:
+
+   set AUTO_RELOAD_ON_FILE_CHANGE=0
+
+3. Windows daily automation (if you prefer once per day instead of continuous):
+
+   schtasks /Create /SC DAILY /TN "OpportunityRadarDaily" /TR "cmd /c cd /d C:\Users\falgu\_\chaar-log-kya-sochenge- && python scraper.py all --once" /ST 07:00
+
+   This runs both scrapers once daily at 7:00 AM.
+
+4. Start backend:
+
+   python backend.py
+
+5. Verify API:
 
    python archive/legacy/test.py
 
@@ -146,8 +169,8 @@ Frontend Integration Notes
 1. Backend has CORS enabled (if flask-cors is installed), so your frontend can call it directly.
 2. Use /internships for list pages and /internships/stats for dashboard cards/charts.
 3. Use /mentorships for mentorship page and /mentorships/stats for mentorship dashboard cards/charts.
-4. After running internship scraper, call POST /reload.
-5. After running mentorship scraper, call POST /reload/mentorship.
+4. After running scraper, backend auto-refreshes by default.
+5. Call POST /reload and POST /reload/mentorship only if auto-refresh is disabled.
 6. Keep frontend filters mapped 1:1 with query params listed above.
 
 Suggested Frontend Call Example

@@ -18,8 +18,11 @@ if CORS is not None:
 
 DATA_FILE = Path(os.getenv("INTERNSHIPS_DATA_FILE", "internships_latest.json"))
 MENTORSHIP_FILE = Path(os.getenv("MENTORSHIP_DATA_FILE", "mentorship_latest.json"))
+AUTO_RELOAD_ON_FILE_CHANGE = os.getenv("AUTO_RELOAD_ON_FILE_CHANGE", "1").lower() not in {"0", "false", "no"}
 DATA = {"scraped_at": None, "total": 0, "sources": [], "internships": []}
 MENTORSHIP_DATA = {"scraped_at": None, "total": 0, "companies": [], "mentorship_programmes": []}
+DATA_FILE_MTIME = None
+MENTORSHIP_FILE_MTIME = None
 
 PROJECT_COMPLIANCE = {
     "uses_preexisting_job_api": False,
@@ -76,9 +79,10 @@ def _safe_float(value):
 
 
 def load_data():
-    global DATA
+    global DATA, DATA_FILE_MTIME
     if not DATA_FILE.exists():
         DATA = {"scraped_at": None, "total": 0, "sources": [], "internships": []}
+        DATA_FILE_MTIME = None
         return
 
     with DATA_FILE.open("r", encoding="utf-8") as f:
@@ -91,10 +95,11 @@ def load_data():
         "sources": sorted({item.get("source", "Unknown") for item in internships}),
         "internships": internships,
     }
+    DATA_FILE_MTIME = DATA_FILE.stat().st_mtime
 
 
 def load_mentorship_data():
-    global MENTORSHIP_DATA
+    global MENTORSHIP_DATA, MENTORSHIP_FILE_MTIME
     if not MENTORSHIP_FILE.exists():
         MENTORSHIP_DATA = {
             "scraped_at": None,
@@ -102,6 +107,7 @@ def load_mentorship_data():
             "companies": [],
             "mentorship_programmes": [],
         }
+        MENTORSHIP_FILE_MTIME = None
         return
 
     with MENTORSHIP_FILE.open("r", encoding="utf-8") as f:
@@ -114,6 +120,26 @@ def load_mentorship_data():
         "companies": sorted({item.get("company", "Unknown") for item in programmes}),
         "mentorship_programmes": programmes,
     }
+    MENTORSHIP_FILE_MTIME = MENTORSHIP_FILE.stat().st_mtime
+
+
+def refresh_if_files_changed():
+    if not AUTO_RELOAD_ON_FILE_CHANGE:
+        return
+
+    if DATA_FILE.exists():
+        current_data_mtime = DATA_FILE.stat().st_mtime
+        if DATA_FILE_MTIME is None or current_data_mtime > DATA_FILE_MTIME:
+            load_data()
+    elif DATA_FILE_MTIME is not None:
+        load_data()
+
+    if MENTORSHIP_FILE.exists():
+        current_mentorship_mtime = MENTORSHIP_FILE.stat().st_mtime
+        if MENTORSHIP_FILE_MTIME is None or current_mentorship_mtime > MENTORSHIP_FILE_MTIME:
+            load_mentorship_data()
+    elif MENTORSHIP_FILE_MTIME is not None:
+        load_mentorship_data()
 
 
 def _contains(hay, needle):
@@ -266,6 +292,7 @@ def compliance():
 
 @app.route("/health")
 def health():
+    refresh_if_files_changed()
     return jsonify(
         {
             "status": "ok",
@@ -310,6 +337,7 @@ def reload_mentorship_data():
 
 @app.route("/internships", methods=["GET"])
 def get_internships():
+    refresh_if_files_changed()
     page = int(request.args.get("page", 1))
     page_size = int(request.args.get("page_size", 20))
     sort_by = request.args.get("sort_by", "title")
@@ -336,6 +364,7 @@ def get_internships():
 
 @app.route("/internships/stats", methods=["GET"])
 def get_stats():
+    refresh_if_files_changed()
     items = DATA.get("internships", [])
     by_source = {}
     by_gender = {}
@@ -359,6 +388,7 @@ def get_stats():
 
 @app.route("/mentorships", methods=["GET"])
 def get_mentorships():
+    refresh_if_files_changed()
     page = int(request.args.get("page", 1))
     page_size = int(request.args.get("page_size", 20))
     sort_by = request.args.get("sort_by", "programme_name")
@@ -385,6 +415,7 @@ def get_mentorships():
 
 @app.route("/mentorships/stats", methods=["GET"])
 def get_mentorship_stats():
+    refresh_if_files_changed()
     items = MENTORSHIP_DATA.get("mentorship_programmes", [])
     by_source = {}
     by_gender = {}
