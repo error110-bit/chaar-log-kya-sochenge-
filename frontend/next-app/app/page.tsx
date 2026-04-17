@@ -257,6 +257,27 @@ function stipendBadge(value?: string | null) {
   return formatStipendBadge(normalizeStipendText(value), cleanText(value))
 }
 
+function compareInternshipStipend(left: LoadedInternship, right: LoadedInternship) {
+  const leftRange = left.stipendRange
+  const rightRange = right.stipendRange
+
+  const leftUnpaid = !leftRange || leftRange.isUnpaid
+  const rightUnpaid = !rightRange || rightRange.isUnpaid
+
+  if (leftUnpaid !== rightUnpaid) return leftUnpaid ? 1 : -1
+  if (leftUnpaid && rightUnpaid) return 0
+
+  const leftMax = leftRange?.max ?? 0
+  const rightMax = rightRange?.max ?? 0
+  if (leftMax !== rightMax) return rightMax - leftMax
+
+  const leftMin = leftRange?.min ?? 0
+  const rightMin = rightRange?.min ?? 0
+  if (leftMin !== rightMin) return rightMin - leftMin
+
+  return cleanText(left.title, "").localeCompare(cleanText(right.title, ""))
+}
+
 function fetchAllPages<T>(fetchPage: (page: number) => Promise<{ meta: { total: number; page_size: number }; data: T[] }>) {
   return fetchPage(1).then(async (firstPage) => {
     const pageSize = firstPage.meta.page_size || 100
@@ -665,7 +686,10 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  const featuredInternships = internshipItems.slice(0, 6)
+  const featuredInternships = [...internshipItems]
+    .sort(compareInternshipStipend)
+    .filter((item) => item.stipendRange && !item.stipendRange.isUnpaid)
+    .slice(0, 6)
 
   const resetInternFilters = () => {
     setIStipend("all")
