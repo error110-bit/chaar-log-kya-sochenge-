@@ -5,7 +5,7 @@ Restriction Compliance
 This project does not use any pre-existing internship/job API.
 Data is collected only through direct website HTML scraping and curated official company career links.
 The site/backend has no login, no signup, and no user credential collection.
-Project is open-source and licensed under MIT (see LICENSE).
+Project is open-source 
 
 This project has two runtime parts:
 
@@ -163,49 +163,6 @@ Query params:
    - If payload is {"internships": [...]} then dataset is replaced.
    - If payload is [...] list then records are appended.
    - If payload is {...} single record then one record is appended.
-
-Frontend Integration Notes
-
-1. Backend has CORS enabled (if flask-cors is installed), so your frontend can call it directly.
-2. Use /internships for list pages and /internships/stats for dashboard cards/charts.
-3. Use /mentorships for mentorship page and /mentorships/stats for mentorship dashboard cards/charts.
-4. After running scraper, backend auto-refreshes by default.
-5. Call POST /reload and POST /reload/mentorship only if auto-refresh is disabled.
-6. Keep frontend filters mapped 1:1 with query params listed above.
-
-Suggested Frontend Call Example
-
-GET http://127.0.0.1:5000/internships?keyword=data&page=1&page_size=12&sort_by=deadline&sort_order=asc
-
-Frontend Integration Kit (Layout-Safe)
-
-If your HTML/CSS layout is already done, use the generated JS files in frontend/static-integration/:
-
-- frontend/static-integration/api.js
-- frontend/static-integration/internships-page.js
-- frontend/static-integration/mentorships-page.js
-- frontend/static-integration/integration-example.html (reference markup only)
-
-How to plug into your existing pages:
-
-1. Keep your own HTML/CSS layout unchanged.
-2. Add required element IDs where data should render:
-   - Internships page IDs: internship-list, internship-total, internship-error, internship-pagination
-   - Mentorship page IDs: mentorship-list, mentorship-total, mentorship-error, mentorship-pagination
-3. Optional filter IDs:
-   - Internships: internship-search, internship-source, internship-gender, internship-sort-by, internship-sort-order
-   - Mentorship: mentorship-search, mentorship-source, mentorship-company, mentorship-gender, mentorship-sort-by, mentorship-sort-order
-4. Include script tags in your page:
-
-   <script>
-     window.API_BASE_URL = "http://127.0.0.1:5000";
-   </script>
-   <script type="module" src="./frontend/static-integration/internships-page.js"></script>
-   <script type="module" src="./frontend/static-integration/mentorships-page.js"></script>
-
-You can include only one script per page if pages are separate.
-
-Next.js frontend app location:
 
 - frontend/next-app
 
