@@ -506,7 +506,7 @@ function DetailsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-2xl rounded-2xl border border-stone-200 bg-[#fffdf8] p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+      <div className="w-full max-w-2xl max-h-[88vh] overflow-y-auto rounded-2xl border border-stone-200 bg-[#fffdf8] p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4 border-b border-stone-200 pb-4">
           <div>
             <p className={`${manrope.className} text-[0.65rem] font-semibold tracking-[0.04em] uppercase text-[var(--accent)]`}>details</p>
