@@ -1,13 +1,12 @@
 "use client"
 
 import { type CSSProperties, useEffect, useMemo, useState } from "react"
-import { Cormorant_Garamond, Manrope, Space_Mono } from "next/font/google"
+import { Cormorant_Garamond, Manrope } from "next/font/google"
 import { FolderCard } from "@/components/FolderCard"
 import { fetchInternships, fetchMentorships, type InternshipItem, type MentorshipItem } from "@/lib/opportunity-api"
 
 const manrope = Manrope({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"] })
 const cormorant = Cormorant_Garamond({ subsets: ["latin"], weight: ["500", "600", "700"] })
-const spaceMono = Space_Mono({ subsets: ["latin"], weight: ["400", "700"] })
 
 type StipendFilter = "all" | "unpaid" | "0-5k" | "5-10k" | "10-15k" | "15-20k" | "20k+"
 type ModeFilter = "all" | "Remote" | "On-site" | "Hybrid"
@@ -96,14 +95,24 @@ function normalizeCompanyText(value?: string | null) {
   return cleaned.replace(/\s+/g, " ").trim()
 }
 
+function normalizeReadableText(value: string) {
+  return value
+    .replace(/([a-zA-Z])(\d)/g, "$1 $2")
+    .replace(/(\d)([a-zA-Z])/g, "$1 $2")
+    .replace(/(duration|reviews)(?=[a-zA-Z₹\d])/gi, "$1 ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 function normalizeDurationText(value?: string | null) {
-  const cleaned = cleanText(value, "").replace(/\s*duration\s*/i, " ").trim()
-  const compact = cleaned.replace(/\s+/g, " ")
-  return compact.replace(/(\d+)\s*to\s*(\d+)\s*years?/i, "$1-$2 years").replace(/(\d+)\s*to\s*(\d+)\s*months?/i, "$1-$2 months")
+  const cleaned = normalizeReadableText(cleanText(value, ""))
+  const stripped = cleaned.replace(/\bduration\b/gi, " ").replace(/\bunpaid\b/gi, " ").replace(/\s+/g, " ").trim()
+  if (!stripped) return "Not mentioned"
+  return stripped.replace(/(\d+)\s*to\s*(\d+)\s*years?/i, "$1-$2 years").replace(/(\d+)\s*to\s*(\d+)\s*months?/i, "$1-$2 months")
 }
 
 function normalizeStipendText(value?: string | null): ParsedStipend | null {
-  const text = cleanText(value, "").toLowerCase().replace(/,/g, "")
+  const text = normalizeReadableText(cleanText(value, "")).toLowerCase().replace(/,/g, "")
   if (!text) return null
 
   if (/unpaid|not disclosed|stipend not mentioned|no stipend/.test(text)) {
@@ -155,7 +164,7 @@ function normalizeStipendText(value?: string | null): ParsedStipend | null {
 
 function normalizeStipendDisplay(value?: string | null) {
   const parsed = normalizeStipendText(value)
-  if (!parsed) return cleanText(value)
+  if (!parsed) return normalizeReadableText(cleanText(value))
   if (parsed.isUnpaid) return "Unpaid"
 
   const min = Math.round(parsed.min)
@@ -436,17 +445,12 @@ function EmptyState({ clearFn }: { clearFn: () => void }) {
   )
 }
 
-function SectionHeading({ kicker, title, text, count }: { kicker: string; title: string; text: string; count?: string }) {
+function SectionHeading({ kicker, title, text }: { kicker: string; title: string; text: string }) {
   return (
     <div className="max-w-3xl">
       <p className={`${manrope.className} text-sm font-bold tracking-[0.08em] uppercase text-[var(--accent)] md:text-base`}>{kicker}</p>
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <h2 className={`${cormorant.className} text-4xl leading-[1.06] tracking-tight text-slate-900 md:text-5xl`}>{title}</h2>
-        {count && (
-          <span className={`${manrope.className} mb-1 rounded-full border border-[var(--accent)]/20 bg-[var(--surface-bg)] px-3 py-1 text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-[var(--accent)]`}>
-            {count}
-          </span>
-        )}
       </div>
       <p className="mt-3 text-sm leading-7 text-slate-600 md:text-base">{text}</p>
     </div>
@@ -743,9 +747,9 @@ export default function Home() {
               <div className="mt-10 rounded-2xl border border-red-200 bg-red-50 py-16 text-center text-sm text-red-700">{internshipError}</div>
             ) : (
               <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                {featuredInternships.map((intern, index) => (
+                {featuredInternships.map((intern) => (
                   <FolderCard
-                    key={intern.id}
+                    key={`${intern.id}-${intern.apply_link}`}
                     title={intern.title}
                     company={intern.company}
                     meta={[intern.stipend, intern.duration, intern.location]}
@@ -817,7 +821,7 @@ export default function Home() {
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {filteredInterns.map((intern) => (
                   <FolderCard
-                    key={intern.id}
+                    key={`${intern.id}-${intern.apply_link}`}
                     title={intern.title}
                     company={intern.company}
                     meta={[stipendBadge(intern.stipend), intern.duration, intern.location]}
