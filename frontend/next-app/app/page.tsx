@@ -106,7 +106,7 @@ function normalizeReadableText(value: string) {
     .replace(/(\d)([a-zA-Z])/g, "$1 $2")
     .replace(/₹(?=\d)/g, "₹ ")
     .replace(/\bupto\b/gi, "up to")
-    .replace(/(lpa|job|post|offer|skill)(?=[a-zA-Z])/gi, "$1 ")
+    .replace(/(lpa|job)(?=[a-zA-Z])/gi, "$1 ")
     .replace(/(ago)(?=job)/gi, "$1 ")
     .replace(/(duration|reviews)(?=[a-zA-Z₹\d])/gi, "$1 ")
     .replace(/\s+/g, " ")
@@ -121,10 +121,11 @@ function normalizeDurationText(value?: string | null) {
 }
 
 function normalizeStipendText(value?: string | null): ParsedStipend | null {
-  const text = normalizeReadableText(cleanText(value, ""))
+  const text = cleanText(value, "")
+    .replace(/â‚¹/g, "₹")
+    .replace(/,/g, "")
     .toLowerCase()
-    .replace(/,/g, "") // Remove thousands separators
-    .replace(/â‚¹/g, "₹") // Fix corrupted rupee symbol
+    .replace(/\s+/g, " ")
   if (!text) return null
 
   if (/unpaid|not disclosed|stipend not mentioned|no stipend/.test(text)) {
@@ -190,8 +191,8 @@ function normalizeStipendDisplay(value?: string | null) {
 
 function stipendBandForRange(range: ParsedStipend | null): Exclude<StipendFilter, "all" | "unpaid"> | null {
   if (!range || range.isUnpaid) return null
-  const midpoint = (range.min + range.max) / 2
-  const band = STIPEND_BANDS.find((item) => midpoint >= item.min && midpoint < item.max)
+  const upperBound = range.max
+  const band = STIPEND_BANDS.find((item) => upperBound <= item.max)
   return band?.id ?? "20k+"
 }
 
@@ -207,8 +208,8 @@ function formatStipendBadge(range: ParsedStipend | null, raw: string) {
   if (!range) return cleanText(raw)
   if (range.isUnpaid) return "Unpaid"
 
-  const midpoint = (range.min + range.max) / 2
-  const band = STIPEND_BANDS.find((item) => midpoint >= item.min && midpoint < item.max)
+  const upperBound = range.max
+  const band = STIPEND_BANDS.find((item) => upperBound <= item.max)
   return band?.label ?? `${Math.round(range.min / 1000)}k+`
 }
 
